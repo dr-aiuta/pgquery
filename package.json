@@ -1,0 +1,39 @@
+{
+  "name": "pgquery",
+  "version": "1.0.0",
+  "description": "postgres module",
+  "main": "src/index.ts",
+  "scripts": {
+    "build": "tsc",
+    "start": "ts-node src/index.ts",
+    "test": "jest"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/dr-aiuta/pgquery.git"
+  },
+  "keywords": [
+    "postgresql",
+    "sql"
+  ],
+  "author": "danide r",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/dr-aiuta/pgquery/issues"
+  },
+  "homepage": "https://github.com/dr-aiuta/pgquery#readme",
+  "devDependencies": {
+    "@types/jest": "^29.4.0",
+    "@types/json-schema": "^7.0.11",
+    "@types/node": "^18.14.0",
+    "@types/pg": "^8.6.6",
+    "jest": "^29.4.3",
+    "ts-jest": "^29.0.5",
+    "ts-node": "^10.9.1",
+    "typescript": "^4.9.5"
+  },
+  "dependencies": {
+    "pg": "^8.10.0",
+    "sql-ddl-to-json-schema": "^4.0.9"
+  }
+}
