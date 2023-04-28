@@ -1,5 +1,6 @@
 import DatabaseManager from '../../src/index';
 import { Pool, QueryResultRow, QueryResult } from 'pg';
+import { PostgresTypes } from '../../src/types';
 
 // Define custom types for user data and user results
 interface UserData {
@@ -40,25 +41,25 @@ const modelsConfig = {
     tableName: 'users',
     schema: {
       id: {
-        type: 'SERIAL',
+        type: PostgresTypes.SERIAL,
         primaryKey: true,
       },
       name: {
-        type: 'TEXT',
+        type: PostgresTypes.TEXT,
         notNull: true,
       },
       email: {
-        type: 'TEXT',
+        type: PostgresTypes.TEXT,
         notNull: true,
         unique: true,
       },
       createdAt: {
-        type: 'TIMESTAMP',
+        type: PostgresTypes.TIMESTAMP,
         notNull: true,
         default: 'NOW()',
       },
       updatedAt: {
-        type: 'TIMESTAMP',
+        type: PostgresTypes.TIMESTAMP,
         notNull: true,
         default: 'NOW()',
       },
@@ -80,11 +81,11 @@ const modelsConfig = {
     tableName: 'posts',
     schema: {
       id: {
-        type: 'SERIAL',
+        type: PostgresTypes.SERIAL,
         primaryKey: true,
       },
       userId: {
-        type: 'INTEGER',
+        type: PostgresTypes.INTEGER,
         notNull: true,
         references: {
           table: 'users',
@@ -92,20 +93,20 @@ const modelsConfig = {
         },
       },
       title: {
-        type: 'TEXT',
+        type: PostgresTypes.TEXT,
         notNull: true,
       },
       content: {
-        type: 'TEXT',
+        type: PostgresTypes.TEXT,
         notNull: true,
       },
       createdAt: {
-        type: 'TIMESTAMP',
+        type: PostgresTypes.TIMESTAMP,
         notNull: true,
         default: 'NOW()',
       },
       updatedAt: {
-        type: 'TIMESTAMP',
+        type: PostgresTypes.TIMESTAMP,
         notNull: true,
         default: 'NOW()',
       },
@@ -142,7 +143,7 @@ describe('db-module', () => {
     const expectedResult = [{ id: 1, ...userData }];
   
     (mockDb.query as jest.Mock).mockResolvedValue({ rows: expectedResult });
-    console.log(Object.keys(dbManager))
+    
      // Call the createUser method and store the result
     const result = await dbManager.models.users.queries.createUser(userData);
   

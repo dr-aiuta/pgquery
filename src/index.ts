@@ -19,12 +19,16 @@ export default class DatabaseManager {
 
       // Loop through the queries in each model
       for (const queryName in model.queries) {
-        const queryConfig = model.queries[queryName];
+        const query = model.queries[queryName];
 
         // Create a function for each query and bind it to the current instance
-        this.models[modelName].queries[queryName] = async (...args: any[]) => {
-          const result = await this.db.query(queryConfig.sql, queryConfig.values(...args));
-          return queryConfig.processResult(result);
+        this.models[modelName].queries[queryName] = async (args: any) => {
+          // Store the result of the optional chaining expression in a variable
+          const queryValues = query.values?.(args) ?? [];
+
+          // Spread the variable when calling the query
+          const result = await this.db.query(query.sql, queryValues);
+          return query.processResult?.(result) ?? result;
         };
       }
     }

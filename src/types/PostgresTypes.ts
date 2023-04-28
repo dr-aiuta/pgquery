@@ -1,20 +1,21 @@
-export type PostgresTypes =
-  | 'BOOLEAN'
-  | 'SMALLINT'
-  | 'INTEGER'
-  | 'BIGINT'
-  | 'REAL'
-  | 'DOUBLE PRECISION'
-  | 'NUMERIC'
-  | 'DECIMAL'
-  | 'CHARACTER'
-  | 'CHARACTER VARYING'
-  | 'TEXT'
-  | 'DATE'
-  | 'TIME'
-  | 'TIMESTAMP'
-  | 'UUID'
-  | 'JSONB'
-  | 'ARRAY'
-  | 'SERIAL'
-  | 'BIGSERIAL';
+export enum PostgresTypes {
+  BOOLEAN = 'BOOLEAN',
+  SMALLINT = 'SMALLINT',
+  INTEGER = 'INTEGER',
+  BIGINT = 'BIGINT',
+  REAL = 'REAL',
+  DOUBLE = 'DOUBLE PRECISION',
+  NUMERIC = 'NUMERIC',
+  DECIMAL = 'DECIMAL',
+  CHARACTER = 'CHARACTER',
+  CHARVAR = 'CHARVAR',
+  TEXT = 'TEXT',
+  DATE = 'DATE',
+  TIME = 'TIME',
+  TIMESTAMP = 'TIMESTAMP',
+  UUID = 'UUID',
+  JSONB = 'JSONB',
+  ARRAY = 'ARRAY',
+  SERIAL = 'SERIAL',
+  BIGSERIAL = 'BIGSERIAL',
+}

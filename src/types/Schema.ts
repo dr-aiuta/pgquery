@@ -1,8 +1,11 @@
 import { PostgresTypes } from './PostgresTypes';
 
 export interface Column {
-  name: string;
   type: PostgresTypes;
+  primaryKey?: boolean;
+  notNull?: boolean;
+  unique?: boolean;
+  default?: string;
   constraints?: string;
 }
 
