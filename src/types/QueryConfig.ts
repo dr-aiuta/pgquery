@@ -1,4 +1,5 @@
 export interface QueryConfig {
   sql: string;
-  returnResult?: boolean;
+  values?: (...args: any[]) => any[];
+  processResult?: (result: any) => any;
 }

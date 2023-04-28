@@ -1,4 +1,4 @@
-import { createDbModule } from '../../src';
+import DatabaseManager from '../../src/index';
 import { Pool, QueryResultRow, QueryResult } from 'pg';
 
 // Define custom types for user data and user results
@@ -124,8 +124,8 @@ const dbConfig = {
   database: 'your_database',
 };
 
-// Create the models using the dbModule
-const models = createDbModule(dbConfig, modelsConfig);
+// Create the database manager instance
+const dbManager = new DatabaseManager(dbConfig, modelsConfig);
 
 
 // Begin the test suite for the db-module
@@ -142,9 +142,9 @@ describe('db-module', () => {
     const expectedResult = [{ id: 1, ...userData }];
   
     (mockDb.query as jest.Mock).mockResolvedValue({ rows: expectedResult });
-  
-    // Call the createUser method and store the result
-    const result = await models.users.createUser(userData);
+    console.log(Object.keys(dbManager))
+     // Call the createUser method and store the result
+    const result = await dbManager.models.users.queries.createUser(userData);
   
     // Check that the correct SQL query and values were passed to the mock database
     expect(mockDb.query).toHaveBeenCalledWith(
@@ -170,7 +170,7 @@ describe('db-module', () => {
     (mockDb.query as jest.Mock).mockResolvedValue({ rows: expectedResult });
   
     // Call the getUserById method and store the result
-    const result = await models.users.getUserById(userId);
+    const result = await dbManager.models.users.queries.getUserById(userId);
   
     // Check that the correct SQL query and values were passed to the mock database
     expect(mockDb.query).toHaveBeenCalledWith(
