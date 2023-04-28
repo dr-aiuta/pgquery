@@ -1,6 +1,6 @@
 {
   "name": "pg-simplifier",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "description": "postgres module",
   "main": "dist/index.js",
   "scripts": {
