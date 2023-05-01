@@ -1,4 +1,4 @@
-import DatabaseManager from '../../src/index';
+import {DatabaseManager} from '../../src/index';
 import { Pool, QueryResultRow, QueryResult } from 'pg';
 import { PostgresTypes } from '../../src/types';
 
