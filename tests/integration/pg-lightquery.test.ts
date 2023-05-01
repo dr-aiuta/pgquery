@@ -1,4 +1,4 @@
-import {DatabaseManager} from '../../src/index';
+import pgLightQuery from '../../src/index';
 import { Pool, QueryResultRow, QueryResult } from 'pg';
 import { PostgresTypes } from '../../src/types';
 
@@ -126,7 +126,7 @@ const dbConfig = {
 };
 
 // Create the database manager instance
-const dbManager = new DatabaseManager(dbConfig, modelsConfig);
+const dbManager = new pgLightQuery.DatabaseManager(dbConfig, modelsConfig);
 
 
 // Begin the test suite for the db-module

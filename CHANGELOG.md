@@ -1,3 +1,7 @@
+# v0.0.6
+
+- Adjusted folder structures and imports
+
 # v0.0.4
 
 - Adjusted folder structures and imports
