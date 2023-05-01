@@ -1,5 +1,5 @@
 {
-  "name": "pg-simplifier",
+  "name": "pg-lightquery",
   "version": "0.0.2",
   "description": "postgres module",
   "main": "dist/index.js",

@@ -1,3 +1,7 @@
+# v0.0.3
+
+- General updates
+
 # v0.0.2
 
 - Updated to Class
