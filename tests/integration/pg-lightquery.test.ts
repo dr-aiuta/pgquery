@@ -67,11 +67,13 @@ const modelsConfig = {
     queries: {
       createUser: {
         sql: 'INSERT INTO users(name, email) VALUES($1, $2) RETURNING *',
+        type:'insert',
         values: ({ name, email }: UserData) => [name, email],
         processResult: (result: QueryResult<UserResult>) => result.rows[0],
       },
       getUserById: {
-        sql: 'SELECT * FROM users WHERE id = $1',
+        sql: 'SELECT * FROM users',
+        type:'select',
         values: (id: number) => [id],
         processResult: (result: QueryResult<UserResult>) => result.rows[0],
       },
@@ -145,7 +147,7 @@ describe('db-module', () => {
     (mockDb.query as jest.Mock).mockResolvedValue({ rows: expectedResult });
     
      // Call the createUser method and store the result
-    const result = await dbManager.models.users.queries.createUser(userData);
+    const result = await dbManager.models.users.queries.createUser([],userData);
   
     // Check that the correct SQL query and values were passed to the mock database
     expect(mockDb.query).toHaveBeenCalledWith(
@@ -171,11 +173,11 @@ describe('db-module', () => {
     (mockDb.query as jest.Mock).mockResolvedValue({ rows: expectedResult });
   
     // Call the getUserById method and store the result
-    const result = await dbManager.models.users.queries.getUserById(userId);
+    const result = await dbManager.models.users.queries.getUserById([`"id"`], {id:userId});
   
     // Check that the correct SQL query and values were passed to the mock database
     expect(mockDb.query).toHaveBeenCalledWith(
-      modelsConfig.users.queries.getUserById.sql,
+      `${modelsConfig.users.queries.getUserById.sql} WHERE "id" = $1` ,
       modelsConfig.users.queries.getUserById.values(userId)
     );
 

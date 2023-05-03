@@ -6,6 +6,7 @@ export interface ModelConfig {
   queries?: {
     [queryName: string]: {
       sql: string;
+      type: string;
       values?: (input: any) => any[];
       processResult?: (result: any) => any;
     };

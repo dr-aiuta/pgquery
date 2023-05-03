@@ -1,5 +1,6 @@
 import { Pool } from 'pg';
 import { DbConfig, ModelsConfig, Model } from '../types';
+import { queryConstructor } from '../utils/SelectQueryConstructor';
 
 class DatabaseManager {
   private db: Pool;
@@ -22,13 +23,50 @@ class DatabaseManager {
         const query = model.queries[queryName];
 
         // Create a function for each query and bind it to the current instance
-        this.models[modelName].queries[queryName] = async (args: any) => {
-          // Store the result of the optional chaining expression in a variable
-          const queryValues = query.values?.(args) ?? [];
+        this.models[modelName].queries[queryName] = async (allowedColumns:string[],args: any) => {
 
-          // Spread the variable when calling the query
-          const result = await this.db.query(query.sql, queryValues);
+          let sqlQuery: string;
+          let queryValues: any[] = [];
+          
+          switch (query.type) {
+            case 'select': {
+              const constructedQuery = queryConstructor(allowedColumns, args);
+              
+              sqlQuery = `${query.sql} ${constructedQuery.sqlQuery}`;
+              queryValues = constructedQuery.urlQueryValuesArray;
+              break;
+            }
+            default: {
+          
+              sqlQuery = query.sql;
+              queryValues = query.values?.(args) ?? [];
+              
+              break;
+            }
+          }
+
+          const result = await this.db.query(sqlQuery, queryValues);
           return query.processResult?.(result) ?? result;
+          
+
+
+
+
+
+
+
+
+
+
+
+
+
+          // // Store the result of the optional chaining expression in a variable
+          // const queryValues = query.values?.(args) ?? [];
+
+          // // Spread the variable when calling the query
+          // const result = await this.db.query(query.sql, queryValues);
+          // return query.processResult?.(result) ?? result;
         };
       }
     }

@@ -1,3 +1,7 @@
+# v0.0.7
+
+- Introduced query constructors
+
 # v0.0.6
 
 - Adjusted folder structures and imports
