@@ -1,6 +1,5 @@
 type Params = {
   [key: string]: any;
-  rangeField?: string;
 };
 
 function queryConstructor(allowedColumns: string[], params: Params, alias: string = ''): {
@@ -14,32 +13,37 @@ function queryConstructor(allowedColumns: string[], params: Params, alias: strin
   const orderByParts: string[] = [];
   let limitPart = '';
 
+  // console.log(Object.entries(params))
   for (const [key, value] of Object.entries(params)) {
-    if (allowedColumns.includes(`"${key.split('.')[0]}"`)) {
-      switch (key) {
-        case 'startDate':
-          whereConditions.push(`${aliasPrefix}"${params.rangeField}" >= $${queryValues.length + 1}`);
-          queryValues.push(value);
-          break;
-        case 'endDate':
-          whereConditions.push(`${aliasPrefix}"${params.rangeField}" <= $${queryValues.length + 1}`);
-          queryValues.push(value);
+    const [field, condition] = key.split('.');
+    if (allowedColumns.includes(`"${field}"`) || allowedColumns.includes('*')) {
+      switch (field) {
+        case 'limit':
+          limitPart = `LIMIT ${value}`;
           break;
         case 'orderBy':
           orderByParts.push(`ORDER BY ${aliasPrefix}"${value}"`);
           break;
-        case 'limit':
-          limitPart = `LIMIT ${value}`;
-          break;
         default:
-          const [column, operator] = key.split('.');
-          const condition = operator === 'not' ? '<>' : '=';
-          const isNull = value === null;
-          whereConditions.push(
-            `${aliasPrefix}"${column}" ${isNull ? 'IS' : condition} $${isNull ? '' : queryValues.length + 1}`
-          );
-          if (!isNull) queryValues.push(value);
-          break;
+          switch(condition){
+            case 'startDate':
+              whereConditions.push(`${aliasPrefix}"${field}" >= $${queryValues.length + 1}`);
+              queryValues.push(value);
+              break;
+            case 'endDate':
+              whereConditions.push(`${aliasPrefix}"${field}" <= $${queryValues.length + 1}`);
+              queryValues.push(value);
+              break;
+            default:
+              const [column, operator] = key.split('.');
+              const condition = operator === 'not' ? '<>' : '=';
+              const isNull = value === null;
+              whereConditions.push(
+                `${aliasPrefix}"${column}" ${isNull ? 'IS' : condition} $${isNull ? '' : queryValues.length + 1}`
+              );
+              if (!isNull) queryValues.push(value);
+              break;
+        }
       }
     }
   }

@@ -1,3 +1,7 @@
+# v0.0.10
+
+- Refactor queries and special queries
+
 # v0.0.7
 
 - Introduced query constructors

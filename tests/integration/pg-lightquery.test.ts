@@ -188,5 +188,44 @@ describe('db-module', () => {
       )
     );
   });
+
+  it('gets users ordered by createdAt within a date range', async () => {
+    // Define the test input data and expected result
+    const startDate = new Date('2023-01-01T00:00:00Z');
+    const endDate = new Date('2023-12-31T23:59:59Z');
+    const expectedResult = [
+      { id: 1, name: 'John Doe', email: 'john.doe@example.com', createdAt: new Date('2023-06-15T00:00:00Z') },
+      { id: 2, name: 'Jane Doe', email: 'jane.doe@example.com', createdAt: new Date('2023-03-20T00:00:00Z') },
+    ];
+  
+    // Mock the query method of the database connection
+    (mockDb.query as jest.Mock).mockResolvedValue({ rows: expectedResult });
+  
+    // Construct the query parameters
+    const params = {
+      "createdAt.startDate": startDate,
+      "createdAt.endDate": endDate,
+      orderBy: "createdAt"
+    };
+  
+    // Call the getUserById method and store the result
+    const result = await dbManager.models.users.queries.getUserById([`"createdAt"`, `"orderBy"`], params);
+  
+    // Prepare the expected SQL query
+    const expectedSql = `${modelsConfig.users.queries.getUserById.sql} WHERE "createdAt" >= $1 AND "createdAt" <= $2 ORDER BY "${params.orderBy}"`;
+    
+    // Check that the correct SQL query and values were passed to the mock database
+    expect(mockDb.query).toHaveBeenCalledWith(
+      expectedSql,
+      [startDate, endDate]
+    );
+  
+    // Check that the result matches the expected result
+    expect(result).toEqual(
+      modelsConfig.users.queries.getUserById.processResult(
+        createQueryResult(expectedResult)
+      )
+    );
+  });
   
 });
