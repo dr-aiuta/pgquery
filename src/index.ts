@@ -1,5 +1,1 @@
-import { DatabaseManager } from './controllers/DatabaseManager';
-
-
-
-export default {DatabaseManager};
+export { DatabaseManager } from './controllers/DatabaseManager';

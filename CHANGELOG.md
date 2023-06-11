@@ -1,3 +1,7 @@
+# v0.0.12
+
+- Adjusted import and exports
+
 # v0.0.11
 
 - Updated with npm run build and new Date() for date ranges
