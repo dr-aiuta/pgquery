@@ -1,3 +1,7 @@
+# v0.0.11
+
+- Updated with npm run build and new Date() for date ranges
+
 # v0.0.10
 
 - Refactor queries and special queries

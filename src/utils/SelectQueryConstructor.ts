@@ -28,11 +28,11 @@ function queryConstructor(allowedColumns: string[], params: Params, alias: strin
           switch(condition){
             case 'startDate':
               whereConditions.push(`${aliasPrefix}"${field}" >= $${queryValues.length + 1}`);
-              queryValues.push(value);
+              queryValues.push(new Date(value));
               break;
             case 'endDate':
               whereConditions.push(`${aliasPrefix}"${field}" <= $${queryValues.length + 1}`);
-              queryValues.push(value);
+              queryValues.push(new Date(value));
               break;
             default:
               const [column, operator] = key.split('.');
