@@ -205,14 +205,15 @@ describe('db-module', () => {
     const params = {
       "createdAt.startDate": startDate,
       "createdAt.endDate": endDate,
-      orderBy: "createdAt"
+      "createdAt.orderBy": "DESC"
     };
   
     // Call the getUserById method and store the result
-    const result = await dbManager.models.users.queries.getUserById([`"createdAt"`, `"orderBy"`], params);
+    const result = await dbManager.models.users.queries.getUserById([`"createdAt"`], params);
   
+    
     // Prepare the expected SQL query
-    const expectedSql = `${modelsConfig.users.queries.getUserById.sql} WHERE "createdAt" >= $1 AND "createdAt" <= $2 ORDER BY "${params.orderBy}"`;
+    const expectedSql = `${modelsConfig.users.queries.getUserById.sql} WHERE "createdAt" >= $1 AND "createdAt" <= $2 ORDER BY "createdAt" DESC`;
     
     // Check that the correct SQL query and values were passed to the mock database
     expect(mockDb.query).toHaveBeenCalledWith(

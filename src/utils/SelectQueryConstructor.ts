@@ -21,9 +21,6 @@ function queryConstructor(allowedColumns: string[], params: Params, alias: strin
         case 'limit':
           limitPart = `LIMIT ${value}`;
           break;
-        case 'orderBy':
-          orderByParts.push(`ORDER BY ${aliasPrefix}"${value}"`);
-          break;
         default:
           switch(condition){
             case 'startDate':
@@ -33,6 +30,9 @@ function queryConstructor(allowedColumns: string[], params: Params, alias: strin
             case 'endDate':
               whereConditions.push(`${aliasPrefix}"${field}" <= $${queryValues.length + 1}`);
               queryValues.push(new Date(value));
+              break;
+            case 'orderBy':
+              orderByParts.push(`ORDER BY ${aliasPrefix}"${field}" ${value}`);
               break;
             default:
               const [column, operator] = key.split('.');

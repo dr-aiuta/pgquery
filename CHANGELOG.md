@@ -1,3 +1,7 @@
+# v0.0.13
+
+- Updated order By queries
+
 # v0.0.12
 
 - Adjusted import and exports
