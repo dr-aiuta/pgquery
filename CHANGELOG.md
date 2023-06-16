@@ -1,3 +1,7 @@
+# v0.0.16
+
+- npm run build
+
 # v0.0.15
 
 - Fixed queries for null values
