@@ -5,7 +5,7 @@ import { PostgresTypes } from '../../src/types';
 // Define custom types for user data and user results
 interface UserData {
   name: string;
-  email: string;
+  email: string | null;
 }
 
 interface UserResult extends UserData {
@@ -50,7 +50,6 @@ const modelsConfig = {
       },
       email: {
         type: PostgresTypes.TEXT,
-        notNull: true,
         unique: true,
       },
       createdAt: {
@@ -228,5 +227,37 @@ describe('db-module', () => {
       )
     );
   });
+
+
+  // Test case: get a user by id with null email
+  it('gets a user by id with null email', async () => {
+    // Define the test input data and expected result
+    const userId = 1;
+    const expectedResult = [{ id: userId, name: 'John Doe', email: null }];
+
+    // Mock the query method of the database connection
+    (mockDb.query as jest.Mock).mockResolvedValue({ rows: expectedResult });
+
+    // Call the getUserById method and store the result
+    const result = await dbManager.models.users.queries.getUserById([`"id"`,`"email"`], {id:userId, email: null});
+
+    // Prepare the expected SQL query
+    const expectedSql = `${modelsConfig.users.queries.getUserById.sql} WHERE "id" = $1 AND "email" IS NULL`;
+
+    // Check that the correct SQL query and values were passed to the mock database
+    expect(mockDb.query).toHaveBeenCalledWith(
+      expectedSql,
+      [1]
+    );
+
+    // Check that the result matches the expected result
+    expect(result).toEqual(
+      modelsConfig.users.queries.getUserById.processResult(
+        createQueryResult(expectedResult)
+      )
+    );
+  });
+
+
   
 });

@@ -39,7 +39,7 @@ function queryConstructor(allowedColumns: string[], params: Params, alias: strin
               const condition = operator === 'not' ? '<>' : '=';
               const isNull = value === null;
               whereConditions.push(
-                `${aliasPrefix}"${column}" ${isNull ? 'IS' : condition} $${isNull ? '' : queryValues.length + 1}`
+                `${aliasPrefix}"${column}" ${isNull ? 'IS' : condition} ${isNull ? 'NULL' : `$${queryValues.length + 1}`}`
               );
               if (!isNull) queryValues.push(value);
               break;
