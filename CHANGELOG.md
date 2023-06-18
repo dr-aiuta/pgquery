@@ -1,3 +1,7 @@
+# v0.0.17
+
+- Added like and in queries
+
 # v0.0.16
 
 - npm run build

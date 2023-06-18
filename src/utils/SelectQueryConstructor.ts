@@ -34,6 +34,16 @@ function queryConstructor(allowedColumns: string[], params: Params, alias: strin
             case 'orderBy':
               orderByParts.push(`ORDER BY ${aliasPrefix}"${field}" ${value}`);
               break;
+            case 'like':
+              whereConditions.push(`${aliasPrefix}"${field}" LIKE $${queryValues.length + 1}`);
+              queryValues.push(`${value}`);
+              break;
+            case 'in':
+              const valuesArray = Array.isArray(value) ? value : typeof value === 'string' ? value.split(',') : [];
+              const placeholders = valuesArray.map((_, i) => `$${queryValues.length + i + 1}`).join(', ');
+              whereConditions.push(`${aliasPrefix}"${field}" IN (${placeholders})`);
+              queryValues.push(...valuesArray); // Assuming value is an array or a string of comma-separated values
+              break;              
             default:
               const [column, operator] = key.split('.');
               const condition = operator === 'not' ? '<>' : '=';

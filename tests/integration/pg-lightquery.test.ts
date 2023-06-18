@@ -258,6 +258,82 @@ describe('db-module', () => {
     );
   });
 
+  // Test case: 'LIKE' query
+  it('gets users whose name contains a specific string', async () => {
+    // Define the test input data and expected result
+    const nameSubstring = '%Doe%';
+    const expectedResult = [
+      { id: 1, name: 'John Doe', email: 'john.doe@example.com' },
+      { id: 2, name: 'Jane Doe', email: 'jane.doe@example.com' },
+    ];
 
-  
+    // Mock the query method of the database connection
+    (mockDb.query as jest.Mock).mockResolvedValue({ rows: expectedResult });
+
+    // Construct the query parameters
+    const params = {
+      "name.like": nameSubstring,
+    };
+
+    // Call the getUserById method and store the result
+    const result = await dbManager.models.users.queries.getUserById([`"name"`], params);
+
+    // Prepare the expected SQL query
+    const expectedSql = `${modelsConfig.users.queries.getUserById.sql} WHERE "name" LIKE $1`;
+
+    // Check that the correct SQL query and values were passed to the mock database
+    expect(mockDb.query).toHaveBeenCalledWith(
+      expectedSql,
+      [`${nameSubstring}`]
+    );
+
+    // Check that the result matches the expected result
+    expect(result).toEqual(
+      modelsConfig.users.queries.getUserById.processResult(
+        createQueryResult(expectedResult)
+      )
+    );
+  });
+
+  // Test case: 'IN' query
+  it('gets users whose id is in a specific set', async () => {
+    // Define the test input data and expected result
+    const ids = ["1", "3", "5"];
+    const expectedResult = [
+      { id: 1, name: 'John Doe', email: 'john.doe@example.com' },
+      { id: 3, name: 'Alice Smith', email: 'alice.smith@example.com' },
+      { id: 5, name: 'Bob Johnson', email: 'bob.johnson@example.com' },
+    ];
+
+    // Mock the query method of the database connection
+    (mockDb.query as jest.Mock).mockResolvedValue({ rows: expectedResult });
+
+    // Construct the query parameters
+    const params = {
+      "id.in": ids.join(','),
+    };
+
+    // Call the getUserById method and store the result
+    const result = await dbManager.models.users.queries.getUserById([`"id"`], params);
+
+    // Prepare the placeholders for the IN clause
+    const placeholders = ids.map((_, i) => `$${i + 1}`).join(', ');
+
+    // Prepare the expected SQL query
+    const expectedSql = `${modelsConfig.users.queries.getUserById.sql} WHERE "id" IN (${placeholders})`;
+
+    // Check that the correct SQL query and values were passed to the mock database
+    expect(mockDb.query).toHaveBeenCalledWith(
+      expectedSql,
+      ids
+    );
+
+    // Check that the result matches the expected result
+    expect(result).toEqual(
+      modelsConfig.users.queries.getUserById.processResult(
+        createQueryResult(expectedResult)
+      )
+    );
+  });
+
 });
