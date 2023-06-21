@@ -3,9 +3,14 @@ import { Pool, QueryResultRow, QueryResult } from 'pg';
 import { PostgresTypes } from '../../src/types';
 
 // Define custom types for user data and user results
+interface Address {
+  neighborhood: string;
+}
+
 interface UserData {
   name: string;
   email: string | null;
+  address?: Address;
 }
 
 interface UserResult extends UserData {
@@ -52,6 +57,9 @@ const modelsConfig = {
         type: PostgresTypes.TEXT,
         unique: true,
       },
+      address: {
+        type: PostgresTypes.JSONB,
+      },
       createdAt: {
         type: PostgresTypes.TIMESTAMP,
         notNull: true,
@@ -65,9 +73,9 @@ const modelsConfig = {
     },
     queries: {
       createUser: {
-        sql: 'INSERT INTO users(name, email) VALUES($1, $2) RETURNING *',
+        sql: 'INSERT INTO users(name, email, address) VALUES($1, $2, $3) RETURNING *',
         type:'insert',
-        values: ({ name, email }: UserData) => [name, email],
+        values: ({ name, email, address }: UserData) => [name, email, JSON.stringify(address)],
         processResult: (result: QueryResult<UserResult>) => result.rows[0],
       },
       getUserById: {
@@ -75,6 +83,12 @@ const modelsConfig = {
         type:'select',
         values: (id: number) => [id],
         processResult: (result: QueryResult<UserResult>) => result.rows[0],
+      },
+      getUserByNeighborhood: {
+        sql: 'SELECT * FROM users',
+        type:'select',
+        values: (address: {neighborhood: string}) => [address.neighborhood],
+        processResult: (result: QueryResult<UserResult>) => result.rows,
       },
     },
   },
@@ -335,5 +349,47 @@ describe('db-module', () => {
       )
     );
   });
+
+
+  // Test case: 'object' query with nested properties
+  it('handles object params with nested properties correctly', async () => {
+    // Define the test input data and expected result
+    const objParams = { address: { neighborhood: 'COPACABANA' } };
+    const expectedResult = [
+      { id: 1, name: 'John Doe', email: 'john.doe@example.com', address:{neighborhood:'COPACABANA'} },
+      { id: 2, name: 'Rita Ora', email: 'rita.ora@example.com', address:{neighborhood:'COPACABANA'} }
+    ];
+
+    // Mock the query method of the database connection
+    (mockDb.query as jest.Mock).mockResolvedValue({ rows: expectedResult });
+
+    // Construct the query parameters
+    const params = {
+      ...objParams,
+    };
+
+    // Call the getUserByNeighborhood method and store the result
+    const result = await dbManager.models.users.queries.getUserByNeighborhood([`"address"`], params);
+
+    // Prepare the placeholders for the object clause
+    const placeholders = `"address" ->> 'neighborhood' = $1`;
+
+    // Prepare the expected SQL query
+    const expectedSql = `${modelsConfig.users.queries.getUserByNeighborhood.sql} WHERE ${placeholders}`;
+
+    // Check that the correct SQL query and values were passed to the mock database
+    expect(mockDb.query).toHaveBeenCalledWith(
+      expectedSql,
+      [objParams.address.neighborhood]
+    );
+
+    // Check that the result matches the expected result
+    expect(result).toEqual(
+      modelsConfig.users.queries.getUserByNeighborhood.processResult(
+        createQueryResult(expectedResult)
+      )
+    );
+  });
+
 
 });

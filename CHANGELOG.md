@@ -1,3 +1,7 @@
+# v0.0.18
+
+- Added json queries
+
 # v0.0.17
 
 - Added like and in queries
