@@ -1,3 +1,7 @@
+# v0.0.19
+
+- Added sql functions
+
 # v0.0.18
 
 - Added json queries

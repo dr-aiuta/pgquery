@@ -23,22 +23,23 @@ class DatabaseManager {
         const query = model.queries[queryName];
 
         // Create a function for each query and bind it to the current instance
-        this.models[modelName].queries[queryName] = async (allowedColumns:string[],args: any) => {
+        this.models[modelName].queries[queryName] = async (allowedColumns:string[],args: any, alias:string,sqlArgs:any) => {
 
+          let sql = typeof query.sql === 'function' ? query.sql(sqlArgs) : query.sql;
           let sqlQuery: string;
           let queryValues: any[] = [];
           
           switch (query.type) {
             case 'select': {
-              const constructedQuery = queryConstructor(allowedColumns, args);
+              const constructedQuery = queryConstructor(allowedColumns, args, alias);
               
-              sqlQuery = `${query.sql} ${constructedQuery.sqlQuery}`;
+              sqlQuery = `${sql} ${constructedQuery.sqlQuery}`;
               queryValues = constructedQuery.urlQueryValuesArray;
               break;
             }
             default: {
           
-              sqlQuery = query.sql;
+              sqlQuery = sql;
               queryValues = query.values?.(args) ?? [];
               
               break;
@@ -48,25 +49,6 @@ class DatabaseManager {
           const result = await this.db.query(sqlQuery, queryValues);
           return query.processResult?.(result) ?? result;
           
-
-
-
-
-
-
-
-
-
-
-
-
-
-          // // Store the result of the optional chaining expression in a variable
-          // const queryValues = query.values?.(args) ?? [];
-
-          // // Spread the variable when calling the query
-          // const result = await this.db.query(query.sql, queryValues);
-          // return query.processResult?.(result) ?? result;
         };
       }
     }

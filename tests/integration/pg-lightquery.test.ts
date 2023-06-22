@@ -8,13 +8,13 @@ interface Address {
 }
 
 interface UserData {
-  name: string;
-  email: string | null;
+  name?: string;
+  email?: string | null;
   address?: Address;
 }
 
 interface UserResult extends UserData {
-  id: number;
+  id?: number;
 }
 
 // Mock the database connection using Jest
@@ -86,6 +86,12 @@ const modelsConfig = {
       },
       getUserByNeighborhood: {
         sql: 'SELECT * FROM users',
+        type:'select',
+        values: (address: {neighborhood: string}) => [address.neighborhood],
+        processResult: (result: QueryResult<UserResult>) => result.rows,
+      },
+      getUserSpecificField: {
+        sql: (field:string) => `SELECT ${field} FROM users`,
         type:'select',
         values: (address: {neighborhood: string}) => [address.neighborhood],
         processResult: (result: QueryResult<UserResult>) => result.rows,
@@ -376,6 +382,46 @@ describe('db-module', () => {
 
     // Prepare the expected SQL query
     const expectedSql = `${modelsConfig.users.queries.getUserByNeighborhood.sql} WHERE ${placeholders}`;
+
+    // Check that the correct SQL query and values were passed to the mock database
+    expect(mockDb.query).toHaveBeenCalledWith(
+      expectedSql,
+      [objParams.address.neighborhood]
+    );
+
+    // Check that the result matches the expected result
+    expect(result).toEqual(
+      modelsConfig.users.queries.getUserByNeighborhood.processResult(
+        createQueryResult(expectedResult)
+      )
+    );
+  });
+
+  // Test case: function sql queries
+  it('gets dynamic field from users', async () => {
+    // Define the test input data and expected result
+    const objParams = { address: { neighborhood: 'COPACABANA' } };
+    const expectedResult = [
+      {name: 'John Doe'},
+      {name: 'Rita Ora'}
+    ];
+
+    // Mock the query method of the database connection
+    (mockDb.query as jest.Mock).mockResolvedValue({ rows: expectedResult });
+
+    // Construct the query parameters
+    const params = {
+      ...objParams,
+    };
+
+    // Call the getUserByNeighborhood method and store the result
+    const result = await dbManager.models.users.queries.getUserSpecificField([`"address"`], params,'','name');
+
+    // Prepare the placeholders for the object clause
+    const placeholders = `"address" ->> 'neighborhood' = $1`;
+
+    // Prepare the expected SQL query
+    const expectedSql = `SELECT name FROM users WHERE ${placeholders}`;
 
     // Check that the correct SQL query and values were passed to the mock database
     expect(mockDb.query).toHaveBeenCalledWith(

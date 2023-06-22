@@ -5,7 +5,7 @@ export interface ModelConfig {
   tableName: string;
   queries?: {
     [queryName: string]: {
-      sql: string;
+      sql: string | ((input: any) => string);
       type: string;
       values?: (input: any) => any[];
       processResult?: (result: any) => any;

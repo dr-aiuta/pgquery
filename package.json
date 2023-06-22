@@ -1,6 +1,6 @@
 {
   "name": "pg-lightquery",
-  "version": "0.0.18",
+  "version": "0.0.19",
   "description": "postgres module",
   "main": "dist/index.js",
   "scripts": {
