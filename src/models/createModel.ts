@@ -12,7 +12,8 @@ export const createModel = (config: ModelConfig, db: Pool): Model => {
       const queryConfig = config.queries[queryName];
       model[queryName] = async (input: any) => {
         const values = queryConfig.values ? queryConfig.values(input) : [];
-        const result = await db.query(queryConfig.sql, values);
+        const sql = typeof queryConfig.sql === 'function' ? queryConfig.sql(input) : queryConfig.sql;
+        const result = await db.query(sql, values);
         return queryConfig.processResult ? queryConfig.processResult(result) : result;
       };
     }
