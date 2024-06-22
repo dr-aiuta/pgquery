@@ -1,5 +1,5 @@
-import { IDbTable } from './IDbTable';
+import {IDbTable} from './IDbTable';
 
 export interface IDbObject {
-  tables: IDbTable[];
+	tables: IDbTable[];
 }

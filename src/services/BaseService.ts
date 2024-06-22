@@ -2,7 +2,6 @@
 // import { PostgresTypes } from '../models/types';
 // import { IDbColumn, IDbTable } from '../models/IDbTable';
 
-
 // export function parseCreateTableSql(sql: string): IDbTable {
 //   const parser = new Parser('mysql');
 //   const schema = parser.feed(sql).toJsonSchemaArray({useRef:true});

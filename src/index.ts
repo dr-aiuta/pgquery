@@ -1,1 +1,1 @@
-export { DatabaseManager } from './controllers/DatabaseManager';
+export {DatabaseManager} from './controllers/DatabaseManager';

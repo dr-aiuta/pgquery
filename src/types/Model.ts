@@ -1,6 +1,6 @@
-import { Schema } from './Schema';
+import {Schema} from './Schema';
 
 export interface Model {
-  schema: Schema;
-  [queryName: string]: any;
+	schema: Schema;
+	[queryName: string]: any;
 }

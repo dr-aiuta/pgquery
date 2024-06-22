@@ -1,5 +1,5 @@
-import { ModelConfig } from './ModelConfig';
+import {ModelConfig} from './ModelConfig';
 
 export interface ModelsConfig {
-  [modelName: string]: ModelConfig;
+	[modelName: string]: ModelConfig;
 }
