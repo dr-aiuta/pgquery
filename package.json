@@ -1,39 +1,45 @@
 {
-  "name": "pg-lightquery",
-  "version": "0.0.19",
-  "description": "postgres module",
-  "main": "dist/index.js",
-  "scripts": {
-    "build": "tsc",
-    "start": "ts-node src/index.ts",
-    "test": "jest"
-  },
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/dr-aiuta/pgquery.git"
-  },
-  "keywords": [
-    "postgresql",
-    "sql"
-  ],
-  "author": "danide r",
-  "license": "ISC",
-  "bugs": {
-    "url": "https://github.com/dr-aiuta/pgquery/issues"
-  },
-  "homepage": "https://github.com/dr-aiuta/pgquery#readme",
-  "devDependencies": {
-    "@types/jest": "^29.4.0",
-    "@types/json-schema": "^7.0.11",
-    "@types/node": "^18.14.0",
-    "@types/pg": "^8.6.6",
-    "jest": "^29.4.3",
-    "ts-jest": "^29.0.5",
-    "ts-node": "^10.9.1",
-    "typescript": "^4.9.5"
-  },
-  "dependencies": {
-    "pg": "^8.10.0",
-    "sql-ddl-to-json-schema": "^4.0.9"
-  }
+	"name": "pg-lightquery",
+	"version": "0.0.19",
+	"description": "postgres module",
+	"main": "dist/index.js",
+	"types": "dist/index.d.ts",
+	"scripts": {
+		"build": "tsc",
+		"start": "ts-node src/index.ts",
+		"test": "jest",
+		"dev": "ts-node src/index.ts"
+	},
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/dr-aiuta/pgquery.git"
+	},
+	"keywords": [
+		"postgresql",
+		"sql"
+	],
+	"author": "danide r",
+	"license": "ISC",
+	"bugs": {
+		"url": "https://github.com/dr-aiuta/pgquery/issues"
+	},
+	"homepage": "https://github.com/dr-aiuta/pgquery#readme",
+	"devDependencies": {
+		"@types/jest": "^29.4.0",
+		"@types/json-schema": "^7.0.11",
+		"@types/node": "^20.17.16",
+		"@types/pg": "^8.6.6",
+		"@types/uuid": "^10.0.0",
+		"jest": "^29.4.3",
+		"ts-jest": "^29.0.5",
+		"ts-node": "^10.9.1",
+		"tsconfig-paths": "^4.2.0",
+		"typescript": "^5.7.3"
+	},
+	"dependencies": {
+		"mocklogs": "^0.1.4",
+		"pg": "^8.10.0",
+		"sql-ddl-to-json-schema": "^4.0.9",
+		"uuid": "^11.0.5"
+	}
 }
