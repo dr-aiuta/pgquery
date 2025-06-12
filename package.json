@@ -6,9 +6,9 @@
 	"types": "dist/index.d.ts",
 	"scripts": {
 		"build": "tsc",
-		"start": "ts-node src/index.ts",
+		"start": "ts-node -r tsconfig-paths/register src/index.ts",
 		"test": "jest",
-		"dev": "ts-node src/index.ts"
+		"dev": "ts-node -r tsconfig-paths/register src/index.ts"
 	},
 	"repository": {
 		"type": "git",
