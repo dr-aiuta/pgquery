@@ -103,4 +103,10 @@ typings/
 # TernJS port file
 .tern-port
 
-.DS_Store
+# Mac OS
+*.DS_Store
+
+#Dev files
+/dev/
+/.vscode/
+.vscode/
