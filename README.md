@@ -93,19 +93,11 @@ const usersTable: TableDefinition<UsersSchema> = {
 ### 3. Create Your Table Class
 
 ```typescript
-import {PGLightQuery, BoundMethods} from 'pg-lightquery';
-import {classUtils} from 'pg-lightquery/shared/helpers';
+import {TableBase} from 'pg-lightquery';
 
-class UsersTable extends PGLightQuery<UsersSchema> {
-	private boundMethods: BoundMethods<UsersSchema> & PGLightQuery<UsersSchema>;
-
+class UsersTable extends TableBase<UsersSchema> {
 	constructor() {
 		super(usersTable);
-		this.boundMethods = this.bindMethods();
-	}
-
-	protected bindMethods(): BoundMethods<UsersSchema> & PGLightQuery<UsersSchema> {
-		return classUtils.bindMethods(this);
 	}
 
 	// Insert a new user
@@ -116,7 +108,7 @@ class UsersTable extends PGLightQuery<UsersSchema> {
 		onConflict: boolean = false,
 		idUser?: string
 	) {
-		return this.boundMethods.insert(userData, allowedColumns, returnField, onConflict, idUser);
+		return this.insert(userData, allowedColumns, returnField, onConflict, idUser || 'SERVER');
 	}
 
 	// Select users with parameters
@@ -274,7 +266,7 @@ const predefinedQueries = {
 };
 
 // Use in your table class
-class UsersTable extends PGLightQuery<UsersSchema> {
+class UsersTable extends TableBase<UsersSchema> {
 	public async selectUserDetails(
 		params: Record<string, any>,
 		allowedColumns: (keyof UsersSchema)[] | '*' = '*',
@@ -359,7 +351,8 @@ src/
 ├── config/
 │   └── queries.ts          # PostgresConnection singleton
 ├── queries/
-│   ├── PGLightQuery.ts     # Main query builder class
+│   ├── TableBase.ts        # Main table base class
+│   ├── DatabaseOperations.ts  # Database operations
 │   ├── insert.ts           # Insert query logic
 │   ├── update.ts           # Update query logic
 │   ├── selectQueryConstructor.ts  # SELECT query building

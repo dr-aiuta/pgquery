@@ -1,6 +1,5 @@
 import {TableDefinition} from '@/types/table';
-import {PGLightQuery, BoundMethods} from '@/queries/PGLightQuery';
-import {classUtils} from '@/queries/shared/helpers';
+import {TableBase} from '@/queries/TableBase';
 import {UsersSchema, usersColumns, UsersData} from '@tests/tables/definitions/users';
 import {QueryParams} from '@/types/column';
 import {QueryObject} from '@/queries/shared/db/queryUtils';
@@ -14,19 +13,13 @@ const usersTable: TableDefinition<UsersSchema> = {
 	},
 };
 
-class UsersTable extends PGLightQuery<UsersSchema> {
-	private boundMethods: BoundMethods<UsersSchema> & PGLightQuery<UsersSchema>;
+class UsersTable extends TableBase<UsersSchema> {
 	private predefinedQueries = {
 		selectUserDetails: predefinedUsersQueries.selectUserDetails,
 	};
 
 	constructor() {
 		super(usersTable);
-		this.boundMethods = this.bindMethods();
-	}
-
-	protected bindMethods(): BoundMethods<UsersSchema> & PGLightQuery<UsersSchema> {
-		return classUtils.bindMethods(this);
 	}
 
 	public insertUser(
@@ -39,7 +32,7 @@ class UsersTable extends PGLightQuery<UsersSchema> {
 		queryObject: QueryObject;
 		execute: () => Promise<Partial<UsersData>[]>;
 	} {
-		return this.boundMethods.insert(dataToBeInserted, allowedColumns, returnField, onConflict, idUser);
+		return this.insert(dataToBeInserted, allowedColumns, returnField, onConflict, idUser || 'SERVER');
 	}
 
 	public async selectUsers(

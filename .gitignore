@@ -110,3 +110,6 @@ typings/
 /dev/
 /.vscode/
 .vscode/
+
+# Build files
+dist/

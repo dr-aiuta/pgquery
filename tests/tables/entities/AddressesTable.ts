@@ -1,6 +1,5 @@
 import {TableDefinition} from '@/types/table';
-import {PGLightQuery, BoundMethods} from '@/queries/PGLightQuery';
-import {classUtils} from '@/queries/shared/helpers';
+import {TableBase} from '@/queries/TableBase';
 import {AddressesSchema, addressesColumns, AddressesData} from '@tests/tables/definitions/addresses';
 import {QueryParams} from '@/types/column';
 import {QueryObject} from '@/queries/shared/db/queryUtils';
@@ -12,16 +11,9 @@ const addressesTable: TableDefinition<AddressesSchema> = {
 	},
 };
 
-class AddressesTable extends PGLightQuery<AddressesSchema> {
-	private boundMethods: BoundMethods<AddressesSchema> & PGLightQuery<AddressesSchema>;
-
+class AddressesTable extends TableBase<AddressesSchema> {
 	constructor() {
 		super(addressesTable);
-		this.boundMethods = this.bindMethods();
-	}
-
-	protected bindMethods(): BoundMethods<AddressesSchema> & PGLightQuery<AddressesSchema> {
-		return classUtils.bindMethods(this);
 	}
 
 	public insertAddress(
@@ -34,7 +26,7 @@ class AddressesTable extends PGLightQuery<AddressesSchema> {
 		queryObject: QueryObject;
 		execute: () => Promise<Partial<AddressesData>[]>;
 	} {
-		return this.boundMethods.insert(dataToBeInserted, allowedColumns, returnField, onConflict, idUser);
+		return this.insert(dataToBeInserted, allowedColumns, returnField, onConflict, idUser || 'SERVER');
 	}
 
 	public async selectAddresses(
@@ -44,13 +36,6 @@ class AddressesTable extends PGLightQuery<AddressesSchema> {
 		return this.select<AddressesData>({
 			params,
 			allowedColumns,
-		}).execute();
-	}
-
-	public async selectAddressByUserId(userId: number): Promise<Partial<AddressesData>[]> {
-		return this.select<AddressesData>({
-			params: {userId},
-			allowedColumns: '*',
 		}).execute();
 	}
 

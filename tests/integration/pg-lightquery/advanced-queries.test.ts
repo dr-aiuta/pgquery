@@ -1,6 +1,6 @@
 import {setupTests, dbpg, usersTable, createQueryResult} from './test-setup';
 
-describe('PGLightQuery - Advanced Query Operations', () => {
+describe('Table Operations - Advanced Query Operations', () => {
 	setupTests();
 
 	it('gets users whose name contains a specific string', async () => {

@@ -6,6 +6,7 @@
 	"types": "dist/index.d.ts",
 	"scripts": {
 		"build": "tsc",
+		"prepublishOnly": "npm run build",
 		"start": "ts-node -r tsconfig-paths/register src/index.ts",
 		"test": "jest",
 		"dev": "ts-node -r tsconfig-paths/register src/index.ts"

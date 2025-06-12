@@ -1,6 +1,6 @@
 import {setupTests, dbpg, usersTable} from './test-setup';
 
-describe('PGLightQuery - Date Range and Ordering', () => {
+describe('Table Operations - Date Range and Ordering', () => {
 	setupTests();
 
 	it('gets users ordered by createdAt within a date range', async () => {

@@ -1,59 +1,54 @@
-// import {setupTests, dbpg, usersTable} from '../pg-lightquery/test-setup';
+import {setupTests, dbpg, usersTable} from '../pg-lightquery/test-setup';
 
-// describe('Security - Transaction Safety', () => {
-// 	setupTests();
+describe('Security - Query Safety', () => {
+	setupTests();
 
-// 	it('rolls back transaction on error', async () => {
-// 		const error = new Error('Query failed');
-// 		(dbpg.query as jest.Mock)
-// 			.mockResolvedValueOnce({rows: []}) // BEGIN
-// 			.mockRejectedValueOnce(error) // First query fails
-// 			.mockResolvedValueOnce({rows: []}); // ROLLBACK
+	it('safely handles concurrent operations', async () => {
+		const expectedResult: any[] = [];
+		(dbpg.query as jest.Mock).mockResolvedValue({rows: expectedResult});
 
-// 		const transaction = [
-// 			{
-// 				sqlText: 'INSERT INTO users(name, email) VALUES($1, $2)',
-// 				valuesToBeInserted: ['John', 'john@example.com'],
-// 			},
-// 			{
-// 				sqlText: 'UPDATE users SET name = $1 WHERE id = $2',
-// 				valuesToBeInserted: ['Jane', 1],
-// 			},
-// 		];
+		// Test that multiple operations can be performed safely
+		const userData1 = {name: 'User 1', email: 'user1@example.com'};
+		const userData2 = {name: 'User 2', email: 'user2@example.com'};
 
-// 		await expect(usersTable.transaction(transaction).execute()).rejects.toThrow(error);
+		const {execute: insert1} = usersTable.insertUser(userData1, ['name', 'email'], 'id', false);
+		const {execute: insert2} = usersTable.insertUser(userData2, ['name', 'email'], 'id', false);
 
-// 		// Verify that ROLLBACK was called
-// 		expect(dbpg.query).toHaveBeenCalledWith('ROLLBACK');
-// 	});
+		// Execute operations concurrently
+		await Promise.all([insert1(), insert2()]);
 
-// 	it('prevents transaction interleaving', async () => {
-// 		const expectedResults = [
-// 			{rows: []}, // BEGIN
-// 			{rows: [{id: 1}]}, // First query
-// 			{rows: [{id: 2}]}, // Second query
-// 			{rows: []}, // COMMIT
-// 		];
+		// Verify operations were executed with proper parameters
+		expect(dbpg.query).toHaveBeenCalledTimes(2);
+		expect(dbpg.query).toHaveBeenCalledWith(expect.stringMatching(/INSERT INTO users/), expect.any(Array));
+	});
 
-// 		(dbpg.query as jest.Mock).mockImplementation((query) => {
-// 			return Promise.resolve(expectedResults.shift());
-// 		});
+	it('properly escapes values in batch operations', async () => {
+		const expectedResult: any[] = [];
+		(dbpg.query as jest.Mock).mockResolvedValue({rows: expectedResult});
 
-// 		const transaction = [
-// 			{
-// 				sqlText: 'INSERT INTO users(name, email) VALUES($1, $2)',
-// 				valuesToBeInserted: ['John', 'john@example.com'],
-// 			},
-// 			{
-// 				sqlText: 'INSERT INTO users(name, email) VALUES($1, $2)',
-// 				valuesToBeInserted: ['Jane', 'jane@example.com'],
-// 			},
-// 		];
+		const maliciousData = {
+			name: "'; DROP TABLE users; --",
+			email: 'test@example.com',
+		};
 
-// 		await usersTable.transaction(transaction).execute();
+		const {execute} = usersTable.insertUser(maliciousData, ['name', 'email'], 'id', false);
+		await execute();
 
-// 		// Verify transaction isolation
-// 		expect(dbpg.query).toHaveBeenCalledWith('BEGIN');
-// 		expect(dbpg.query).toHaveBeenCalledWith('COMMIT');
-// 	});
-// });
+		// Verify that the query was parameterized properly (matches multiline format)
+		expect(dbpg.query).toHaveBeenCalledWith(
+			expect.stringMatching(/INSERT INTO users[\s\S]*VALUES[\s\S]*\$1,[\s\S]*\$2/),
+			expect.arrayContaining([maliciousData.name, maliciousData.email])
+		);
+	});
+
+	it('validates column access permissions', async () => {
+		const expectedResult: any[] = [];
+		(dbpg.query as jest.Mock).mockResolvedValue({rows: expectedResult});
+
+		// Test that only allowed columns are used in queries
+		await usersTable.selectUsers({id: 1}, ['id', 'name']);
+
+		// Verify that query only includes allowed columns
+		expect(dbpg.query).toHaveBeenCalledWith(expect.stringMatching(/SELECT "id", "name"/), expect.any(Array));
+	});
+});

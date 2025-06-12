@@ -1,6 +1,6 @@
 import {setupTests, dbpg, usersTable} from './test-setup';
 
-describe('PGLightQuery - Basic CRUD Operations', () => {
+describe('Table Operations - Basic CRUD Operations', () => {
 	setupTests();
 
 	// Test case: create a user

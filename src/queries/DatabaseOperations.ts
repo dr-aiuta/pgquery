@@ -1,34 +1,18 @@
 import {pgUtilsDb, pgUtilsHelpers} from './shared';
 import {TableDefinition} from '../types/table';
-import {ColumnDefinition, SchemaToData, ColumnTypeMapping, QueryParams, QueryConditionKeys} from '../types/column';
-import dbpg from '../config/queries';
-import {QueryArrayResult, QueryResult, QueryResultRow} from 'pg';
+import {ColumnDefinition, SchemaToData, ColumnTypeMapping, QueryParams} from '../types/column';
+import {QueryArrayResult, QueryResultRow} from 'pg';
 import {QueryObject, adjustPlaceholders, findMaxPlaceholder} from './shared/db/queryUtils';
 import {queryConstructor} from './selectQueryConstructor';
 
-export interface BoundMethods<T extends Record<string, ColumnDefinition>> {
-	insert: (
-		dataToBeInserted: Partial<SchemaToData<T>>,
-		allowedColumns: (keyof T)[],
-		returnField: keyof T,
-		onConflict: boolean,
-		idUser: string,
-		predefinedSQLText?: string
-	) => {queryObject: QueryObject; execute: () => Promise<Partial<SchemaToData<T>>[]>};
-	select: (paramsObj: {
-		params?: QueryParams<T>;
-		allowedColumns?: (keyof T)[] | '*';
-		alias?: string;
-		allowedColumnsOptions?: ('limit' | 'offset')[];
-		predefinedSQL?: {sqlText: string; values?: any[]};
-	}) => {sqlText: string; values: any[]; execute: () => Promise<Partial<SchemaToData<T>[]>[]>};
-	update: () => string;
-	// Add more methods if necessary
-}
-
-export class PGLightQuery<T extends Record<string, {type: keyof ColumnTypeMapping}>> {
-	public tableName: string;
-	public schema: {
+/**
+ * Internal database operations class - not exposed to end users
+ * Contains all low-level database operations that table classes can use
+ * through composition rather than inheritance
+ */
+export class DatabaseOperations<T extends Record<string, {type: keyof ColumnTypeMapping}>> {
+	public readonly tableName: string;
+	public readonly schema: {
 		columns: {
 			[K in keyof T]: ColumnDefinition;
 		};
@@ -83,25 +67,28 @@ export class PGLightQuery<T extends Record<string, {type: keyof ColumnTypeMappin
 		return allowedColumns as Array<keyof T | 'limit' | 'offset'>;
 	}
 
-	public generatePrimaryKey(prefix: string) {
+	public generatePrimaryKey(prefix: string): string {
 		return pgUtilsHelpers.classUtils.generatePrimaryKey(prefix);
 	}
 
-	// Ensure the method signature in PGLightQuery matches what's expected in BoundMethods
-	protected insert(
+	/**
+	 * Low-level insert operation
+	 * Available to table implementers through composition
+	 */
+	public insert(
 		dataToBeInserted: Partial<SchemaToData<T>>,
 		allowedColumns: (keyof T)[] | '*',
 		returnField: keyof T,
-		onConflict: boolean,
+		onConflict: boolean = false,
 		idUser: string = 'SERVER',
 		predefinedSQLText?: string
 	): {queryObject: QueryObject; execute: () => Promise<Partial<SchemaToData<T>>[]>} {
-		allowedColumns = this.treatAllowedColumns(allowedColumns);
+		const treatedAllowedColumns = this.treatAllowedColumns(allowedColumns);
 
 		const {columnsNamesForInsert, columnValuesForInsert, assignmentsForConflictUpdate} =
 			pgUtilsDb.queryUtils.extractInsertAndUpdateAssignmentParts(
 				dataToBeInserted,
-				allowedColumns,
+				treatedAllowedColumns,
 				this.schema.columns,
 				this.schema.primaryKeys,
 				idUser
@@ -116,7 +103,7 @@ export class PGLightQuery<T extends Record<string, {type: keyof ColumnTypeMappin
 			assignmentsForConflictUpdate,
 			returnField
 		);
-		// Return queryObject and the execute function
+
 		const queryObject: QueryObject = {
 			sqlText,
 			valuesToBeInserted,
@@ -125,7 +112,6 @@ export class PGLightQuery<T extends Record<string, {type: keyof ColumnTypeMappin
 		return {
 			queryObject,
 			execute: async (): Promise<Partial<SchemaToData<T>>[]> => {
-				// Execute the query and return the result
 				const result = await pgUtilsDb.queryExecutor.executeInsertQuery<Partial<SchemaToData<T>>>(
 					sqlText,
 					valuesToBeInserted
@@ -135,7 +121,11 @@ export class PGLightQuery<T extends Record<string, {type: keyof ColumnTypeMappin
 		};
 	}
 
-	protected select<U extends QueryResultRow = SchemaToData<T>>(
+	/**
+	 * Low-level select operation
+	 * Available to table implementers through composition
+	 */
+	public select<U extends QueryResultRow = SchemaToData<T>>(
 		paramsObj: {
 			params?: QueryParams<T>;
 			allowedColumns?: (keyof T)[] | '*';
@@ -145,7 +135,6 @@ export class PGLightQuery<T extends Record<string, {type: keyof ColumnTypeMappin
 			schemaColumns?: U;
 		} = {}
 	): {sqlText: string; values: any[]; execute: () => Promise<Partial<U>[]>} {
-		// Destructure the input object with defaults
 		const {
 			params = {},
 			allowedColumns = '*',
@@ -155,13 +144,9 @@ export class PGLightQuery<T extends Record<string, {type: keyof ColumnTypeMappin
 			schemaColumns,
 		} = paramsObj;
 
-		// Step 1: Determine if we're selecting all columns
 		const selectAllColumns = allowedColumns === '*';
-
-		// Step 2: Treat allowed columns
 		const treatedAllowedColumns = this.treatAllowedColumns(allowedColumns, allowedColumnsOptions, schemaColumns);
 
-		// Step 3: Build the WHERE clause and collect query values
 		let {sqlQuery: whereClause, urlQueryValuesArray} = queryConstructor(
 			treatedAllowedColumns.map((col) => `"${col.toString()}"`),
 			params,
@@ -171,44 +156,41 @@ export class PGLightQuery<T extends Record<string, {type: keyof ColumnTypeMappin
 		let sqlText: string = '';
 
 		if (predefinedSQL) {
-			// Remove any trailing semicolons
 			predefinedSQL.sqlText = predefinedSQL.sqlText.trim().replace(/;+$/, '');
-
 			let maxPlaceholder: number = findMaxPlaceholder(predefinedSQL.sqlText);
-
-			// Adjust the placeholders in whereClause
 			const adjustedWhereClause = adjustPlaceholders(whereClause, maxPlaceholder);
-
-			// Append the adjusted WHERE clause to the SQL text
 			sqlText = `${predefinedSQL.sqlText} ${adjustedWhereClause}`;
-
-			// Combine predefined values with whereClause values
 			urlQueryValuesArray = (predefinedSQL.values || []).concat(urlQueryValuesArray);
 		} else {
-			// Step 4: Construct the final SQL query
 			const columnsToSelect = selectAllColumns
 				? '*'
 				: treatedAllowedColumns.map((col) => `"${col.toString()}"`).join(', ');
 			sqlText = `SELECT ${columnsToSelect} FROM ${this.tableName} ${whereClause}`;
 		}
-		// Step 5: Return the execute function
+
 		return {
 			sqlText,
 			values: urlQueryValuesArray,
 			execute: async (): Promise<Partial<U>[]> => {
-				// Standard selection using the table's schema T
 				const result = await pgUtilsDb.queryExecutor.executeSelectQuery(sqlText, urlQueryValuesArray);
 				return result as Partial<U>[];
 			},
 		};
 	}
 
-	protected update(predefinedSQLText?: string): string {
-		// Implementation of update
+	/**
+	 * Low-level update operation
+	 * Available to table implementers through composition
+	 */
+	public update(predefinedSQLText?: string): string {
 		return `UPDATE ${this.tableName} SET ...`;
 	}
 
-	protected transaction(
+	/**
+	 * Low-level transaction operation
+	 * Available to table implementers through composition
+	 */
+	public transaction(
 		queryObjects: QueryObject[] = [],
 		predefinedSQLText?: string
 	): {
@@ -218,7 +200,6 @@ export class PGLightQuery<T extends Record<string, {type: keyof ColumnTypeMappin
 		return {
 			queryObjects,
 			execute: async (): Promise<QueryArrayResult<any[]>[]> => {
-				// Execute the query and return the result
 				return pgUtilsDb.queryExecutor.executeTransactionQuery(queryObjects);
 			},
 		};

@@ -1,6 +1,5 @@
 import {TableDefinition} from '@/types/table';
-import {PGLightQuery, BoundMethods} from '@/queries/PGLightQuery';
-import {classUtils} from '@/queries/shared/helpers';
+import {TableBase} from '@/queries/TableBase';
 import {PostsSchema, postsColumns, PostsData} from '@tests/tables/definitions/posts';
 import {QueryParams} from '@/types/column';
 import {QueryObject} from '@/queries/shared/db/queryUtils';
@@ -12,16 +11,9 @@ const postsTable: TableDefinition<PostsSchema> = {
 	},
 };
 
-class PostsTable extends PGLightQuery<PostsSchema> {
-	private boundMethods: BoundMethods<PostsSchema> & PGLightQuery<PostsSchema>;
-
+class PostsTable extends TableBase<PostsSchema> {
 	constructor() {
 		super(postsTable);
-		this.boundMethods = this.bindMethods();
-	}
-
-	protected bindMethods(): BoundMethods<PostsSchema> & PGLightQuery<PostsSchema> {
-		return classUtils.bindMethods(this);
 	}
 
 	public insertPost(
@@ -34,7 +26,7 @@ class PostsTable extends PGLightQuery<PostsSchema> {
 		queryObject: QueryObject;
 		execute: () => Promise<Partial<PostsData>[]>;
 	} {
-		return this.boundMethods.insert(dataToBeInserted, allowedColumns, returnField, onConflict, idUser);
+		return this.insert(dataToBeInserted, allowedColumns, returnField, onConflict, idUser || 'SERVER');
 	}
 
 	public async selectPosts(
@@ -44,13 +36,6 @@ class PostsTable extends PGLightQuery<PostsSchema> {
 		return this.select<PostsData>({
 			params,
 			allowedColumns,
-		}).execute();
-	}
-
-	public async selectPostsByUserId(userId: number): Promise<Partial<PostsData>[]> {
-		return this.select<PostsData>({
-			params: {userId},
-			allowedColumns: '*',
 		}).execute();
 	}
 

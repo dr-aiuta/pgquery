@@ -1,6 +1,9 @@
 // Main exports for pg-lightquery
-export {PGLightQuery} from './queries/PGLightQuery';
-export type {BoundMethods} from './queries/PGLightQuery';
+// ✅ COMPOSITION-BASED API (RECOMMENDED)
+export {TableBase} from './queries/TableBase';
+
+// Note: DatabaseOperations is intentionally not exported
+// It's an internal implementation detail for composition
 
 // Database connection
 export {default as PostgresConnection} from './config/queries';
@@ -21,7 +24,14 @@ export type {TableDefinition, ColumnsDefinition} from './types/table';
 export type {RequireExactlyOne, UniqueArray, InArray} from './types/types';
 
 // Shared utilities
-export {pgUtilsDb, pgUtilsHelpers} from './queries/shared';
+export {pgUtilsDb} from './queries/shared';
+export {pgUtilsHelpers} from './queries/shared';
 
-// Default export is the main PGLightQuery class
-export {PGLightQuery as default} from './queries/PGLightQuery';
+export type {QueryObject} from './queries/shared/db/queryUtils';
+export type {DatabaseSchema} from './types/database';
+
+// Main export is now TableBase
+export {TableBase as default} from './queries/TableBase';
+
+// ✅ Also export TableBase as QueryBuilder alias for convenience
+export {TableBase as QueryBuilder} from './queries/TableBase';
