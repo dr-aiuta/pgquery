@@ -1,8 +1,8 @@
-import {TableDefinition} from '@/types/table';
-import {TableBase} from '@/queries/TableBase';
+import {TableDefinition} from '@/types';
+import {TableBase} from '@/core/table-base';
 import {PostsSchema, postsColumns, PostsData} from '@tests/tables/definitions/posts';
-import {QueryParams} from '@/types/column';
-import {QueryObject} from '@/queries/shared/db/queryUtils';
+import {QueryParams} from '@/types';
+import {QueryObject} from '@/utils/query-utils';
 
 const postsTable: TableDefinition<PostsSchema> = {
 	tableName: 'posts',

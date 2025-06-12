@@ -1,8 +1,8 @@
-import {TableDefinition} from '@/types/table';
-import {TableBase} from '@/queries/TableBase';
+import {TableDefinition} from '@/types';
+import {TableBase} from '@/core/table-base';
 import {AddressesSchema, addressesColumns, AddressesData} from '@tests/tables/definitions/addresses';
-import {QueryParams} from '@/types/column';
-import {QueryObject} from '@/queries/shared/db/queryUtils';
+import {QueryParams} from '@/types';
+import {QueryObject} from '@/utils/query-utils';
 
 const addressesTable: TableDefinition<AddressesSchema> = {
 	tableName: 'addresses',

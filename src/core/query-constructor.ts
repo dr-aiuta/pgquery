@@ -1,4 +1,4 @@
-import handleSQLQueryParts from '@/queries/shared/helpers/utils';
+import handleSQLQueryParts from '../utils/helpers';
 
 export function queryConstructor(
 	allowedColumns: string[],

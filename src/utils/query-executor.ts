@@ -1,6 +1,6 @@
-import dbpg from '@/config/queries';
-import {SchemaToData} from '@/types/column';
-import {QueryObject} from './queryUtils';
+import dbpg from '../connection/postgres-connection';
+import {SchemaToData} from '../types/core-types';
+import {QueryObject} from './query-utils';
 import {QueryArrayResult, QueryResult} from 'pg';
 
 /**

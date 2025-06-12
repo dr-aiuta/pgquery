@@ -348,22 +348,24 @@ export type QueryParams<T extends Record<string, ColumnDefinition>> = {
 
 ```
 src/
-├── config/
-│   └── queries.ts          # PostgresConnection singleton
-├── queries/
-│   ├── TableBase.ts        # Main table base class
-│   ├── DatabaseOperations.ts  # Database operations
-│   ├── insert.ts           # Insert query logic
-│   ├── update.ts           # Update query logic
-│   ├── selectQueryConstructor.ts  # SELECT query building
-│   └── shared/
-│       ├── db/             # Database utilities
-│       └── helpers/        # Helper functions
+├── index.ts                           # Main exports
+├── connection/
+│   └── postgres-connection.ts         # PostgresConnection singleton
+├── core/
+│   ├── table-base.ts                  # Main table base class
+│   ├── database-operations.ts         # Database operations
+│   └── query-constructor.ts           # SELECT query building
+├── utils/
+│   ├── query-builder.ts               # SQL query building utilities
+│   ├── query-executor.ts              # Query execution utilities
+│   ├── query-utils.ts                 # Query utility functions
+│   ├── array-utils.ts                 # Array validation utilities
+│   ├── class-utils.ts                 # Class utility functions
+│   └── helpers.ts                     # SQL query helper functions
 └── types/
-    ├── column.ts           # Column and schema types
-    ├── table.ts            # Table definition types
-    ├── database.ts         # Database schema types
-    └── types.ts            # Utility types
+    ├── index.ts                       # Type exports
+    ├── core-types.ts                  # Column, table, and database types
+    └── utility-types.ts               # Utility type definitions
 ```
 
 ## Dependencies

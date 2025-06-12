@@ -1,8 +1,8 @@
-import {TableDefinition} from '@/types/table';
-import {TableBase} from '@/queries/TableBase';
+import {TableDefinition} from '@/types';
+import {TableBase} from '@/core/table-base';
 import {UsersSchema, usersColumns, UsersData} from '@tests/tables/definitions/users';
-import {QueryParams} from '@/types/column';
-import {QueryObject} from '@/queries/shared/db/queryUtils';
+import {QueryParams} from '@/types';
+import {QueryObject} from '@/utils/query-utils';
 import {SelectUserDetailsInterface} from '../views/selectUserDetails';
 import predefinedUsersQueries from '../queries/predefined/users';
 

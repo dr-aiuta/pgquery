@@ -49,3 +49,23 @@ export type QueryConditionKeys<T extends Record<string, ColumnDefinition>> =
 export type QueryParams<T extends Record<string, ColumnDefinition>> = {
 	[key in QueryConditionKeys<T>]?: any;
 };
+
+// Table types
+export interface ColumnsDefinition {
+	[columnName: string]: ColumnDefinition;
+}
+
+export interface TableDefinition<T> {
+	tableName: string;
+	schema: {
+		columns: {
+			[K in keyof T]: ColumnDefinition;
+		};
+		// index
+	};
+}
+
+// Database types
+export type DatabaseSchema<T> = {
+	[tableName: string]: TableDefinition<T>;
+};

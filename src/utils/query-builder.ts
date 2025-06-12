@@ -1,5 +1,5 @@
-import {ColumnDefinition} from '@/types/column';
-import {UniqueArray} from '@/types/types';
+import {ColumnDefinition} from '../types/core-types';
+import {UniqueArray} from '../types/utility-types';
 
 // Function to construct a SQL condition based on key, index, alias, and rangeField
 const constructCondition = (key: string, idx: number, alias: string, rangeField?: string): string => {

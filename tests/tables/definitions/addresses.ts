@@ -1,4 +1,4 @@
-import {ColumnDefinition, SchemaToData, Mutable, QueryParams} from '@/types/column';
+import {ColumnDefinition, SchemaToData, Mutable, QueryParams} from '@/types';
 
 export type AddressesColumnName = 'id' | 'userId' | 'street' | 'neighborhood' | 'city' | 'createdAt' | 'updatedAt';
 

@@ -1,6 +1,6 @@
-import {SchemaToData} from '@/types/column';
-import {ColumnDefinition} from '@/types/column';
-import {UniqueArray} from '@/types/types';
+import {SchemaToData} from '../types/core-types';
+import {ColumnDefinition} from '../types/core-types';
+import {UniqueArray} from '../types/utility-types';
 
 /**
  * Extracts column names and values for insert operations and prepares update assignments for conflict handling.

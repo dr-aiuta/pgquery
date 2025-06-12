@@ -1,8 +1,8 @@
-import {TableDefinition} from '../types/table';
-import {ColumnDefinition, SchemaToData, ColumnTypeMapping, QueryParams} from '../types/column';
+import {TableDefinition} from '../types/core-types';
+import {ColumnDefinition, SchemaToData, ColumnTypeMapping, QueryParams} from '../types/core-types';
 import {QueryArrayResult, QueryResultRow} from 'pg';
-import {QueryObject} from './shared/db/queryUtils';
-import {DatabaseOperations} from './DatabaseOperations';
+import {QueryObject} from '../utils/query-utils';
+import {DatabaseOperations} from './database-operations';
 
 /**
  * Base class for table implementations using composition

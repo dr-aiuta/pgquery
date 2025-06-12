@@ -1,5 +1,5 @@
 import {Pool} from 'pg';
-import PostgresConnection from '@/config/queries';
+import PostgresConnection from '@/connection/postgres-connection';
 
 jest.mock('pg', () => {
 	const mClient = {

@@ -1,9 +1,13 @@
-import {pgUtilsDb, pgUtilsHelpers} from './shared';
-import {TableDefinition} from '../types/table';
-import {ColumnDefinition, SchemaToData, ColumnTypeMapping, QueryParams} from '../types/column';
+import * as queryUtils from '../utils/query-utils';
+import * as queryBuilder from '../utils/query-builder';
+import * as queryExecutor from '../utils/query-executor';
+import * as arrayUtils from '../utils/array-utils';
+import * as classUtils from '../utils/class-utils';
+import {TableDefinition} from '../types/core-types';
+import {ColumnDefinition, SchemaToData, ColumnTypeMapping, QueryParams} from '../types/core-types';
 import {QueryArrayResult, QueryResultRow} from 'pg';
-import {QueryObject, adjustPlaceholders, findMaxPlaceholder} from './shared/db/queryUtils';
-import {queryConstructor} from './selectQueryConstructor';
+import {QueryObject, adjustPlaceholders, findMaxPlaceholder} from '../utils/query-utils';
+import {queryConstructor} from './query-constructor';
 
 /**
  * Internal database operations class - not exposed to end users
@@ -41,12 +45,12 @@ export class DatabaseOperations<T extends Record<string, {type: keyof ColumnType
 		schemaColumns?: Record<string, ColumnDefinition>
 	): Array<keyof T | 'limit' | 'offset'> {
 		if (Array.isArray(allowedColumns)) {
-			pgUtilsHelpers.arrayUtils.checkArrayUniqueness(allowedColumns);
+			arrayUtils.checkArrayUniqueness(allowedColumns);
 		}
 		if (allowedColumns === '*') {
 			allowedColumns = Object.keys(schemaColumns || this.schema.columns) as (keyof T)[];
 		} else {
-			pgUtilsHelpers.arrayUtils.checkArrayUniqueness(allowedColumns);
+			arrayUtils.checkArrayUniqueness(allowedColumns);
 			const schemaKeys = new Set(Object.keys(schemaColumns || this.schema.columns));
 			allowedColumns.forEach((column) => {
 				if (!schemaKeys.has(column as string)) {
@@ -68,7 +72,7 @@ export class DatabaseOperations<T extends Record<string, {type: keyof ColumnType
 	}
 
 	public generatePrimaryKey(prefix: string): string {
-		return pgUtilsHelpers.classUtils.generatePrimaryKey(prefix);
+		return classUtils.generatePrimaryKey(prefix);
 	}
 
 	/**
@@ -86,7 +90,7 @@ export class DatabaseOperations<T extends Record<string, {type: keyof ColumnType
 		const treatedAllowedColumns = this.treatAllowedColumns(allowedColumns);
 
 		const {columnsNamesForInsert, columnValuesForInsert, assignmentsForConflictUpdate} =
-			pgUtilsDb.queryUtils.extractInsertAndUpdateAssignmentParts(
+			queryUtils.extractInsertAndUpdateAssignmentParts(
 				dataToBeInserted,
 				treatedAllowedColumns,
 				this.schema.columns,
@@ -94,7 +98,7 @@ export class DatabaseOperations<T extends Record<string, {type: keyof ColumnType
 				idUser
 			);
 
-		const {sqlText, valuesToBeInserted} = pgUtilsDb.queryBuilder.buildInsertSqlQuery(
+		const {sqlText, valuesToBeInserted} = queryBuilder.buildInsertSqlQuery(
 			this.tableName,
 			columnsNamesForInsert,
 			columnValuesForInsert,
@@ -112,10 +116,7 @@ export class DatabaseOperations<T extends Record<string, {type: keyof ColumnType
 		return {
 			queryObject,
 			execute: async (): Promise<Partial<SchemaToData<T>>[]> => {
-				const result = await pgUtilsDb.queryExecutor.executeInsertQuery<Partial<SchemaToData<T>>>(
-					sqlText,
-					valuesToBeInserted
-				);
+				const result = await queryExecutor.executeInsertQuery<Partial<SchemaToData<T>>>(sqlText, valuesToBeInserted);
 				return result;
 			},
 		};
@@ -172,7 +173,7 @@ export class DatabaseOperations<T extends Record<string, {type: keyof ColumnType
 			sqlText,
 			values: urlQueryValuesArray,
 			execute: async (): Promise<Partial<U>[]> => {
-				const result = await pgUtilsDb.queryExecutor.executeSelectQuery(sqlText, urlQueryValuesArray);
+				const result = await queryExecutor.executeSelectQuery(sqlText, urlQueryValuesArray);
 				return result as Partial<U>[];
 			},
 		};
@@ -200,7 +201,7 @@ export class DatabaseOperations<T extends Record<string, {type: keyof ColumnType
 		return {
 			queryObjects,
 			execute: async (): Promise<QueryArrayResult<any[]>[]> => {
-				return pgUtilsDb.queryExecutor.executeTransactionQuery(queryObjects);
+				return queryExecutor.executeTransactionQuery(queryObjects);
 			},
 		};
 	}
