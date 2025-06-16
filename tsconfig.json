@@ -3,6 +3,7 @@
 		"target": "ES2018",
 		"module": "CommonJS",
 		"moduleResolution": "node",
+		"rootDir": "./src",
 		"outDir": "./dist",
 		"strict": true,
 		"esModuleInterop": true,
@@ -14,5 +15,6 @@
 		"declaration": true /* Generate .d.ts files from TypeScript and JavaScript files in your project. */,
 		"declarationMap": true /* Create sourcemaps for d.ts files. */
 	},
-	"include": ["src/**/*", "tests/**/*"]
+	"include": ["src/**/*"],
+	"exclude": ["tests/**/*", "node_modules", "dist"]
 }
