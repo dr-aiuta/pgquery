@@ -6,7 +6,17 @@ import * as classUtils from '../utils/class-utils';
 import {TableDefinition} from '../types/core-types';
 import {ColumnDefinition, SchemaToData, ColumnTypeMapping, QueryParams} from '../types/core-types';
 import {QueryArrayResult, QueryResultRow} from 'pg';
-import {QueryObject, adjustPlaceholders, findMaxPlaceholder} from '../utils/query-utils';
+import {
+	QueryObject,
+	adjustPlaceholders,
+	findMaxPlaceholder,
+	QueryResult,
+	TransactionResult,
+	BaseOptions,
+	InsertOptions,
+	SelectOptions,
+	UpdateOptions,
+} from '../utils/query-utils';
 import {queryConstructor} from './query-constructor';
 
 /**
@@ -76,29 +86,25 @@ export class DatabaseOperations<T extends Record<string, {type: keyof ColumnType
 	}
 
 	/**
-	 * Low-level insert operation
+	 * Low-level insert operation with new standardized interface
 	 * Available to table implementers through composition
 	 */
-	public insert(
-		dataToBeInserted: Partial<SchemaToData<T>>,
-		allowedColumns: (keyof T)[] | '*',
-		returnField: keyof T,
-		onConflict: boolean = false,
-		idUser: string = 'SERVER',
-		predefinedSQLText?: string
-	): {queryObject: QueryObject; execute: () => Promise<Partial<SchemaToData<T>>[]>} {
+	public insert(input: BaseOptions<T> & {options: InsertOptions<T>}): QueryResult<Partial<SchemaToData<T>>[]> {
+		const {allowedColumns = '*', predefinedSQL, options} = input;
+		const {data, returnField, onConflict = false, idUser = 'SERVER'} = options;
+
 		const treatedAllowedColumns = this.treatAllowedColumns(allowedColumns);
 
 		const {columnsNamesForInsert, columnValuesForInsert, assignmentsForConflictUpdate} =
 			queryUtils.extractInsertAndUpdateAssignmentParts(
-				dataToBeInserted,
+				data,
 				treatedAllowedColumns,
 				this.schema.columns,
 				this.schema.primaryKeys,
 				idUser
 			);
 
-		const {sqlText, valuesToBeInserted} = queryBuilder.buildInsertSqlQuery(
+		const {sqlText, values} = queryBuilder.buildInsertSqlQuery(
 			this.tableName,
 			columnsNamesForInsert,
 			columnValuesForInsert,
@@ -110,47 +116,34 @@ export class DatabaseOperations<T extends Record<string, {type: keyof ColumnType
 
 		const queryObject: QueryObject = {
 			sqlText,
-			valuesToBeInserted,
+			values,
 		};
 
 		return {
-			queryObject,
+			query: queryObject,
 			execute: async (): Promise<Partial<SchemaToData<T>>[]> => {
-				const result = await queryExecutor.executeInsertQuery<Partial<SchemaToData<T>>>(sqlText, valuesToBeInserted);
+				const result = await queryExecutor.executeInsertQuery<Partial<SchemaToData<T>>>(sqlText, values);
 				return result;
 			},
 		};
 	}
 
 	/**
-	 * Low-level select operation
+	 * Low-level select operation with new standardized interface
 	 * Available to table implementers through composition
 	 */
 	public select<U extends QueryResultRow = SchemaToData<T>>(
-		paramsObj: {
-			params?: QueryParams<T>;
-			allowedColumns?: (keyof T)[] | '*';
-			alias?: string;
-			allowedColumnsOptions?: ('limit' | 'offset')[];
-			predefinedSQL?: {sqlText: string; values?: any[]};
-			schemaColumns?: U;
-		} = {}
-	): {sqlText: string; values: any[]; execute: () => Promise<Partial<U>[]>} {
-		const {
-			params = {},
-			allowedColumns = '*',
-			alias = '',
-			allowedColumnsOptions = ['limit', 'offset'],
-			predefinedSQL,
-			schemaColumns,
-		} = paramsObj;
+		input: BaseOptions<T> & {options?: SelectOptions<T>} = {}
+	): QueryResult<Partial<U>[]> {
+		const {allowedColumns = '*', predefinedSQL, options = {}} = input;
+		const {where = {}, alias = '', includeMetadata = false, schemaColumns} = options;
 
 		const selectAllColumns = allowedColumns === '*';
-		const treatedAllowedColumns = this.treatAllowedColumns(allowedColumns, allowedColumnsOptions, schemaColumns);
+		const treatedAllowedColumns = this.treatAllowedColumns(allowedColumns, ['limit', 'offset'], schemaColumns);
 
 		let {sqlQuery: whereClause, urlQueryValuesArray} = queryConstructor(
 			treatedAllowedColumns.map((col) => `"${col.toString()}"`),
-			params,
+			where,
 			alias
 		);
 
@@ -169,9 +162,13 @@ export class DatabaseOperations<T extends Record<string, {type: keyof ColumnType
 			sqlText = `SELECT ${columnsToSelect} FROM ${this.tableName} ${whereClause}`;
 		}
 
-		return {
+		const queryObject: QueryObject = {
 			sqlText,
 			values: urlQueryValuesArray,
+		};
+
+		return {
+			query: queryObject,
 			execute: async (): Promise<Partial<U>[]> => {
 				const result = await queryExecutor.executeSelectQuery(sqlText, urlQueryValuesArray);
 				return result as Partial<U>[];
@@ -180,29 +177,49 @@ export class DatabaseOperations<T extends Record<string, {type: keyof ColumnType
 	}
 
 	/**
-	 * Low-level update operation
+	 * Low-level update operation with new standardized interface
 	 * Available to table implementers through composition
 	 */
-	public update(predefinedSQLText?: string): string {
-		return `UPDATE ${this.tableName} SET ...`;
+	public update(input: BaseOptions<T> & {options: UpdateOptions<T>}): QueryResult<Partial<SchemaToData<T>>[]> {
+		const {allowedColumns = '*', predefinedSQL, options} = input;
+		const {data, where, returnField, idUser = 'SERVER'} = options;
+
+		// Basic implementation - you can expand this based on your needs
+		const sqlText = `UPDATE ${this.tableName} SET ... WHERE ...`;
+		const values: any[] = [];
+
+		const queryObject: QueryObject = {
+			sqlText,
+			values,
+		};
+
+		return {
+			query: queryObject,
+			execute: async (): Promise<Partial<SchemaToData<T>>[]> => {
+				// Implement update execution logic
+				return [];
+			},
+		};
 	}
 
 	/**
-	 * Low-level transaction operation
+	 * Transaction builder with new standardized interface
 	 * Available to table implementers through composition
 	 */
-	public transaction(
-		queryObjects: QueryObject[] = [],
-		predefinedSQLText?: string
-	): {
-		queryObjects: QueryObject[];
-		execute: () => Promise<QueryArrayResult<any>[]>;
-	} {
-		return {
-			queryObjects,
-			execute: async (): Promise<QueryArrayResult<any[]>[]> => {
-				return queryExecutor.executeTransactionQuery(queryObjects);
+	public transaction(): TransactionResult<QueryArrayResult<any>[]> {
+		const queries: QueryObject[] = [];
+
+		const transactionResult: TransactionResult<QueryArrayResult<any>[]> = {
+			queries,
+			execute: async (): Promise<QueryArrayResult<any>[]> => {
+				return queryExecutor.executeTransactionQuery(queries);
+			},
+			add: (query: QueryObject): TransactionResult<QueryArrayResult<any>[]> => {
+				queries.push(query);
+				return transactionResult;
 			},
 		};
+
+		return transactionResult;
 	}
 }

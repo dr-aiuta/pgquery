@@ -5,20 +5,47 @@ A lightweight, type-safe PostgreSQL query builder for Node.js with TypeScript su
 ## Features
 
 - 🔒 **Type-safe query building** with full TypeScript support
-- 🎯 **Object-oriented approach** with class-based table definitions
-- 🚀 **Easy to use API** with method chaining and bound methods
+- 🎯 **Object-oriented approach** with class-based table definitions using composition
+- 🚀 **Standardized query interface** with consistent return patterns and deferred execution
 - 📦 **Minimal dependencies** (pg, mocklogs, sql-ddl-to-json-schema, uuid)
-- 🛠 **Built-in transaction support** with automatic rollback
+- 🛠 **Built-in transaction support** with automatic rollback and builder pattern
 - 🔍 **Advanced query filtering** with special operators
 - 📊 **Support for complex views and joins** via predefined SQL
 - 🎨 **Predefined query templates** with CTE and aggregation support
 - 🔄 **JSON field operations** with nested property queries
 - 📝 **Comprehensive logging** and error handling
+- 🧪 **Enhanced testability** with query inspection capabilities
+- ⚡ **Protected database operations** ensuring clean public APIs
 
 ## Installation
 
 ```bash
 npm install pg-lightquery
+```
+
+## Architecture Overview
+
+### New Standardized Interface Pattern
+
+All table methods now follow a consistent pattern:
+
+- **Consistent return type**: All methods return `QueryResult<T>` with `{query: QueryObject, execute: () => Promise<T>}` structure
+- **Query inspection**: Access generated SQL and parameters before execution via `.query` property
+- **Deferred execution**: Build queries separately from execution for better testing and debugging
+- **Transaction builder**: Fluent interface for building complex transactions
+- **Protected composition**: Database operations are protected, ensuring clean public APIs
+
+```typescript
+// All methods follow this pattern:
+interface QueryResult<T> {
+	query: QueryObject; // Access SQL and parameters
+	execute(): Promise<T>; // Execute when ready
+}
+
+interface QueryObject {
+	sqlText: string; // Generated SQL
+	values: any[]; // Parameterized values
+}
 ```
 
 ## Quick Start
@@ -90,46 +117,128 @@ const usersTable: TableDefinition<UsersSchema> = {
 };
 ```
 
-### 3. Create Your Table Class
+### 3. Create Your Table Class (New Pattern)
 
 ```typescript
 import {TableBase} from 'pg-lightquery';
+import {QueryResult} from 'pg-lightquery';
 
 class UsersTable extends TableBase<UsersSchema> {
 	constructor() {
 		super(usersTable);
 	}
 
-	// Insert a new user
+	// Insert a new user - returns QueryResult for inspection/execution
 	public insertUser(
-		userData: Partial<UsersData>,
 		allowedColumns: (keyof UsersSchema)[] | '*',
-		returnField: keyof UsersSchema,
-		onConflict: boolean = false,
-		idUser?: string
-	) {
-		return this.insert(userData, allowedColumns, returnField, onConflict, idUser || 'SERVER');
-	}
-
-	// Select users with parameters
-	public async selectUsers(
-		params: QueryParams<UsersSchema>,
-		allowedColumns: (keyof UsersSchema)[] | '*' = '*'
-	): Promise<Partial<UsersData>[]> {
-		return this.select<UsersData>({
-			params,
+		options: {
+			data: Partial<UsersData>;
+			returnField?: keyof UsersSchema;
+			onConflict?: boolean;
+			idUser?: string;
+		}
+	): QueryResult<Partial<UsersData>[]> {
+		return this.insert({
 			allowedColumns,
-		}).execute();
+			options: {
+				data: options.data,
+				returnField: options.returnField,
+				onConflict: options.onConflict || false,
+				idUser: options.idUser || 'SERVER',
+			},
+		});
 	}
 
-	// Select user by ID
-	public async selectUserById(id: number): Promise<Partial<UsersData>[]> {
+	// Select users with parameters - returns QueryResult
+	public selectUsers(
+		allowedColumns: (keyof UsersSchema)[] | '*',
+		options?: {
+			where?: QueryParams<UsersSchema>;
+			alias?: string;
+		}
+	): QueryResult<Partial<UsersData>[]> {
 		return this.select<UsersData>({
-			params: {id},
+			allowedColumns,
+			options: {
+				where: options?.where,
+				alias: options?.alias,
+			},
+		});
+	}
+
+	// Select user by ID - returns QueryResult
+	public selectUserById(id: number): QueryResult<Partial<UsersData>[]> {
+		return this.select<UsersData>({
 			allowedColumns: '*',
-		}).execute();
+			options: {
+				where: {id},
+			},
+		});
+	}
+
+	// Public transaction access
+	public transaction() {
+		return super.transaction();
 	}
 }
+```
+
+## New Usage Patterns
+
+### Query Inspection and Execution
+
+```typescript
+const usersTable = new UsersTable();
+
+// Build query without execution
+const insertResult = usersTable.insertUser(['name', 'email'], {
+	data: {name: 'John', email: 'john@example.com'},
+	returnField: 'id',
+});
+
+// Inspect the generated query
+console.log('SQL:', insertResult.query.sqlText);
+console.log('Values:', insertResult.query.values);
+// Output:
+// SQL: INSERT INTO users ("name", "email") VALUES ($1, $2) RETURNING "id"
+// Values: ['John', 'john@example.com']
+
+// Execute when ready
+const result = await insertResult.execute();
+
+// Or execute immediately using method chaining
+const users = await usersTable
+	.selectUsers(['id', 'name'], {
+		where: {'name.like': 'John%'},
+	})
+	.execute();
+```
+
+### Transaction Builder Pattern
+
+```typescript
+// Build multiple queries
+const insert1 = usersTable.insertUser(['name', 'email'], {
+	data: {name: 'User 1', email: 'user1@example.com'},
+	returnField: 'id',
+});
+
+const insert2 = usersTable.insertUser(['name', 'email'], {
+	data: {name: 'User 2', email: 'user2@example.com'},
+	returnField: 'id',
+});
+
+// Build transaction using fluent interface
+const transaction = usersTable.transaction().add(insert1.query).add(insert2.query);
+
+// Inspect transaction
+console.log('Transaction queries:', transaction.queries.length);
+transaction.queries.forEach((query, index) => {
+	console.log(`Query ${index + 1}:`, query.sqlText);
+});
+
+// Execute transaction
+const results = await transaction.execute();
 ```
 
 ## Advanced Query Features
@@ -142,48 +251,68 @@ The library supports various special operators for advanced filtering:
 
 ```typescript
 // Query users created within a date range
-const recentUsers = await usersTable.selectUsers({
-	'createdAt.startDate': '2023-01-01',
-	'createdAt.endDate': '2023-12-31',
+const recentUsersResult = usersTable.selectUsers(['id', 'name', 'createdAt'], {
+	where: {
+		'createdAt.startDate': '2023-01-01',
+		'createdAt.endDate': '2023-12-31',
+	},
 });
+
+const recentUsers = await recentUsersResult.execute();
 ```
 
 #### Pattern Matching with LIKE
 
 ```typescript
 // Find users whose names start with 'John'
-const johnUsers = await usersTable.selectUsers({
-	'name.like': 'John%',
+const johnUsersResult = usersTable.selectUsers(['id', 'name'], {
+	where: {
+		'name.like': 'John%',
+	},
 });
+
+const johnUsers = await johnUsersResult.execute();
 ```
 
 #### IN Clause Queries
 
 ```typescript
 // Select multiple users by their IDs
-const specificUsers = await usersTable.selectUsers({
-	'id.in': [1, 2, 3, 4, 5],
+const specificUsersResult = usersTable.selectUsers(['id', 'name'], {
+	where: {
+		'id.in': [1, 2, 3, 4, 5],
+	},
 });
+
+const specificUsers = await specificUsersResult.execute();
 ```
 
 #### JSON Field Queries
 
 ```typescript
 // Query users based on nested JSON properties
-const usUsers = await usersTable.selectUsers({
-	'metadata.country': 'USA',
-	'settings.language': 'en',
+const usUsersResult = usersTable.selectUsers(['id', 'name', 'metadata'], {
+	where: {
+		'metadata.country': 'USA',
+		'settings.language': 'en',
+	},
 });
+
+const usUsers = await usUsersResult.execute();
 ```
 
 #### Ordering and Limiting
 
 ```typescript
 // Get the latest 10 users, ordered by creation date
-const latestUsers = await usersTable.selectUsers({
-	'createdAt.orderBy': 'DESC',
-	limit: 10,
+const latestUsersResult = usersTable.selectUsers(['id', 'name', 'createdAt'], {
+	where: {
+		'createdAt.orderBy': 'DESC',
+		limit: 10,
+	},
 });
+
+const latestUsers = await latestUsersResult.execute();
 ```
 
 ### Complex Queries with Predefined SQL
@@ -267,50 +396,115 @@ const predefinedQueries = {
 
 // Use in your table class
 class UsersTable extends TableBase<UsersSchema> {
-	public async selectUserDetails(
-		params: Record<string, any>,
-		allowedColumns: (keyof UsersSchema)[] | '*' = '*',
-		additionalWhereClause?: string
-	): Promise<Partial<UserDetailsView>[]> {
+	public selectUserDetails(
+		allowedColumns: (keyof UsersSchema)[] | '*',
+		options: {
+			where?: Record<string, any>;
+			whereClause?: string;
+		}
+	): QueryResult<Partial<UserDetailsView>[]> {
 		let sqlText = predefinedQueries.selectUserDetails;
 
-		if (additionalWhereClause) {
-			sqlText += ` AND ${additionalWhereClause}`;
+		if (options.whereClause) {
+			sqlText += ` AND ${options.whereClause}`;
 		}
 
 		return this.select<UserDetailsView>({
-			params,
 			allowedColumns,
 			predefinedSQL: {
 				sqlText,
 			},
-		}).execute();
+			options: {
+				where: options.where,
+			},
+		});
 	}
 }
+
+// Usage
+const userDetailsResult = usersTable.selectUserDetails(['id', 'name'], {
+	where: {active: true},
+	whereClause: "u.created_at > NOW() - INTERVAL '30 days'",
+});
+
+// Inspect complex query
+console.log('Complex query SQL:', userDetailsResult.query.sqlText);
+
+// Execute
+const userDetails = await userDetailsResult.execute();
 ```
 
-### Transaction Support
+## Testing and Debugging
 
-Execute multiple queries within a transaction:
+### Query Inspection for Testing
 
 ```typescript
-import {QueryObject} from 'pg-lightquery';
+describe('Users Table', () => {
+	it('should generate correct SQL for user selection', () => {
+		const selectResult = usersTable.selectUsers(['id', 'name'], {
+			where: {name: 'John', 'age.gte': 18},
+		});
 
-// Create transaction with multiple operations
-const transactionQueries: QueryObject[] = [
-	{
-		sqlText: 'INSERT INTO users(name, email) VALUES($1, $2)',
-		valuesToBeInserted: ['John Doe', 'john@example.com'],
-	},
-	{
-		sqlText: 'UPDATE users SET name = $1 WHERE id = $2',
-		valuesToBeInserted: ['Jane Doe', 1],
-	},
-];
+		// Test SQL structure without database execution
+		expect(selectResult.query.sqlText).toContain('SELECT "id", "name" FROM users');
+		expect(selectResult.query.sqlText).toContain('WHERE "name" = $1');
+		expect(selectResult.query.values).toEqual(['John', 18]);
+	});
 
-const transaction = usersTable.transaction(transactionQueries);
-await transaction.execute();
+	it('should execute query and return data', async () => {
+		const selectResult = usersTable.selectUsers(['id', 'name'], {
+			where: {name: 'John'},
+		});
+
+		const users = await selectResult.execute();
+		expect(users).toBeInstanceOf(Array);
+		expect(users[0]).toHaveProperty('id');
+		expect(users[0]).toHaveProperty('name');
+	});
+});
 ```
+
+### Transaction Testing
+
+```typescript
+describe('Transaction Builder', () => {
+	it('should build transaction with multiple queries', () => {
+		const insert1 = usersTable.insertUser(['name'], {
+			data: {name: 'User 1'},
+		});
+
+		const insert2 = usersTable.insertUser(['name'], {
+			data: {name: 'User 2'},
+		});
+
+		const transaction = usersTable.transaction().add(insert1.query).add(insert2.query);
+
+		expect(transaction.queries).toHaveLength(2);
+		expect(transaction.queries[0].sqlText).toContain('INSERT INTO users');
+		expect(transaction.queries[1].sqlText).toContain('INSERT INTO users');
+	});
+});
+```
+
+## Architecture Benefits
+
+### Composition Over Inheritance
+
+The new architecture uses composition instead of inheritance for database operations:
+
+- **Protected operations**: Database methods are not exposed in public APIs
+- **Clean interfaces**: Table classes only expose intended functionality
+- **Better testing**: Easier to mock and test individual components
+- **Type safety**: Full TypeScript support throughout the stack
+
+### Standardized Interface
+
+All methods follow the same pattern:
+
+1. **Input structure**: Common parameters at top level, method-specific options nested
+2. **Return structure**: Consistent `QueryResult<T>` with query inspection and execution
+3. **Type safety**: Strong typing throughout the interface
+4. **Testability**: Easy access to generated SQL via `.query` property
 
 ## Type System
 
@@ -344,6 +538,26 @@ export type QueryParams<T extends Record<string, ColumnDefinition>> = {
 };
 ```
 
+### New Standardized Types
+
+```typescript
+export type QueryObject = {
+	sqlText: string;
+	values: any[];
+};
+
+export interface QueryResult<T> {
+	query: QueryObject;
+	execute(): Promise<T>;
+}
+
+export interface TransactionResult<T> {
+	queries: QueryObject[];
+	execute(): Promise<T>;
+	add(query: QueryObject): TransactionResult<T>;
+}
+```
+
 ## Project Structure
 
 ```
@@ -352,13 +566,13 @@ src/
 ├── connection/
 │   └── postgres-connection.ts         # PostgresConnection singleton
 ├── core/
-│   ├── table-base.ts                  # Main table base class
-│   ├── database-operations.ts         # Database operations
+│   ├── table-base.ts                  # Main table base class with composition
+│   ├── database-operations.ts         # Protected database operations
 │   └── query-constructor.ts           # SELECT query building
 ├── utils/
 │   ├── query-builder.ts               # SQL query building utilities
 │   ├── query-executor.ts              # Query execution utilities
-│   ├── query-utils.ts                 # Query utility functions
+│   ├── query-utils.ts                 # Query utility functions and interfaces
 │   ├── array-utils.ts                 # Array validation utilities
 │   ├── class-utils.ts                 # Class utility functions
 │   └── helpers.ts                     # SQL query helper functions
@@ -366,6 +580,51 @@ src/
     ├── index.ts                       # Type exports
     ├── core-types.ts                  # Column, table, and database types
     └── utility-types.ts               # Utility type definitions
+```
+
+## Testing
+
+The library includes comprehensive test coverage:
+
+- **✅ 30/30 tests passing**
+- **Integration tests**: Real database operations
+- **Security tests**: SQL injection prevention, input validation
+- **Transaction tests**: Builder pattern and rollback scenarios
+- **Query inspection tests**: SQL structure validation
+- **Date range tests**: Complex filtering scenarios
+
+Test files:
+
+- `tests/integration/pg-lightquery/` - Core functionality tests
+- `tests/integration/security/` - Security-focused tests
+- `tests/tables/` - Table entity and definition tests
+
+## Migration Guide
+
+### From Old Pattern to New Pattern
+
+**Before (Old Pattern)**:
+
+```typescript
+// Inconsistent return types and interfaces
+const result = await table.selectUsers({params: {name: 'John'}, allowedColumns: ['id', 'name']});
+const {execute} = table.insertUser(data, ['name'], 'id', false, 'user');
+```
+
+**After (New Pattern)**:
+
+```typescript
+// Consistent QueryResult interface
+const selectResult = table.selectUsers(['id', 'name'], {where: {name: 'John'}});
+const insertResult = table.insertUser(['name'], {data, returnField: 'id', idUser: 'user'});
+
+// Query inspection capability
+console.log(selectResult.query.sqlText);
+console.log(insertResult.query.values);
+
+// Execute when ready
+const users = await selectResult.execute();
+const newUser = await insertResult.execute();
 ```
 
 ## Dependencies

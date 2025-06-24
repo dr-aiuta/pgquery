@@ -58,7 +58,7 @@ export function buildInsertSqlQuery<T extends Record<string, ColumnDefinition>>(
 	primaryKeyColumns: UniqueArray<(keyof T)[]>,
 	conflictUpdateAssignments: string[],
 	returnField?: keyof T
-): {sqlText: string; valuesToBeInserted: any[]} {
+): {sqlText: string; values: any[]} {
 	// Interpolating the values as $1, $2, $3, etc.
 	const placeholders = valuesForInsert.map((_, index) => `$${index + 1}`).join(', ');
 
@@ -75,7 +75,7 @@ ${returnField ? `RETURNING "${String(returnField)}"` : ''};
 
 	return {
 		sqlText: sqlText.trim(),
-		valuesToBeInserted: valuesForInsert,
+		values: valuesForInsert,
 	};
 }
 

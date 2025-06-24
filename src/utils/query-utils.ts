@@ -1,5 +1,6 @@
 import {SchemaToData} from '../types/core-types';
 import {ColumnDefinition} from '../types/core-types';
+import {QueryParams} from '../types/core-types';
 import {UniqueArray} from '../types/utility-types';
 
 /**
@@ -50,7 +51,7 @@ export function extractInsertAndUpdateAssignmentParts<T extends Record<string, C
 
 export type QueryObject = {
 	sqlText: string;
-	valuesToBeInserted: any[];
+	values: any[];
 };
 
 export function adjustPlaceholders(sql: string, offset: number): string {
@@ -73,6 +74,50 @@ export function findMaxPlaceholder(sqlText: string): number {
 	}
 	return maxPlaceholder;
 }
+
+// New standardized interfaces
+interface QueryResult<T> {
+	query: QueryObject;
+	execute(): Promise<T>;
+}
+
+interface TransactionResult<T> {
+	queries: QueryObject[];
+	execute(): Promise<T>;
+	add(query: QueryObject): TransactionResult<T>;
+}
+
+interface BaseOptions<T extends Record<string, ColumnDefinition>> {
+	allowedColumns?: (keyof T)[] | '*';
+	predefinedSQL?: {
+		sqlText: string;
+		values?: any[];
+	};
+}
+
+interface InsertOptions<T extends Record<string, ColumnDefinition>> {
+	data: Partial<SchemaToData<T>>;
+	returnField?: keyof T;
+	onConflict?: boolean;
+	idUser?: string;
+}
+
+interface SelectOptions<T extends Record<string, ColumnDefinition>> {
+	where?: QueryParams<T>;
+	alias?: string;
+	includeMetadata?: boolean;
+	schemaColumns?: any;
+}
+
+interface UpdateOptions<T extends Record<string, ColumnDefinition>> {
+	data: Partial<SchemaToData<T>>;
+	where: QueryParams<T>; // Required for safety
+	returnField?: keyof T;
+	idUser?: string;
+}
+
+// Export the new interfaces
+export type {QueryResult, TransactionResult, BaseOptions, InsertOptions, SelectOptions, UpdateOptions};
 
 export default {
 	extractInsertAndUpdateAssignmentParts,

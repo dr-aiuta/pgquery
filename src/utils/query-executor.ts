@@ -32,9 +32,9 @@ export async function executeSelectQuery<T>(sqlText: string, values: any[]): Pro
  *
  * @throws Throws an error if the query fails for reasons other than unique constraint violations.
  */
-export async function executeInsertQuery<T>(sqlText: string, valuesToBeInserted: any[]): Promise<T[]> {
+export async function executeInsertQuery<T>(sqlText: string, values: any[]): Promise<T[]> {
 	try {
-		const result = await dbpg.query(sqlText, valuesToBeInserted);
+		const result = await dbpg.query(sqlText, values);
 		return result.rows;
 	} catch (error: any) {
 		if (error.message.includes('violates unique constraint')) {
@@ -59,7 +59,7 @@ export async function executeTransactionQuery(queryObjects: QueryObject[] = []):
 		await dbpg.query('BEGIN');
 		for (const queryObj of queryObjects) {
 			// Execute each query with its parameterized values
-			results.push(await dbpg.query(queryObj.sqlText, queryObj.valuesToBeInserted));
+			results.push(await dbpg.query(queryObj.sqlText, queryObj.values));
 		}
 		await dbpg.query('COMMIT');
 	} catch (error) {

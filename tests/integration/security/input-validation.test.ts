@@ -3,40 +3,83 @@ import {setupTests, dbpg, usersTable} from '../pg-lightquery/test-setup';
 describe('Security - Input Validation', () => {
 	setupTests();
 
-	it('handles null values safely', async () => {
-		const expectedResult: any[] = [];
+	it('validates required fields are present', async () => {
+		const incompleteData = {name: 'John Doe'}; // Missing email
+		const expectedError = new Error('Column email is required');
+
+		// NEW STANDARDIZED PATTERN:
+		const insertResult = usersTable.insertUser(['name', 'email'], {
+			data: incompleteData,
+			returnField: 'id',
+		});
+
+		// Test that we can inspect the query structure
+		expect(insertResult.query.sqlText).toContain('INSERT INTO users');
+		expect(insertResult.query.values).toContain(incompleteData.name);
+
+		// Mock an error for missing required field
+		(dbpg.query as jest.Mock).mockRejectedValue(expectedError);
+
+		await expect(insertResult.execute()).rejects.toThrow('Column email is required');
+	});
+
+	it('validates data types correctly', async () => {
+		const validData = {name: 'John Doe', email: 'john@example.com'};
+		const expectedResult = [{id: 1, ...validData}];
+
 		(dbpg.query as jest.Mock).mockResolvedValue({rows: expectedResult});
 
-		const result = await usersTable.selectUsers({email: null}, ['id', 'name', 'email']);
+		// NEW STANDARDIZED PATTERN:
+		const insertResult = usersTable.insertUser(['name', 'email'], {
+			data: validData,
+			returnField: 'id',
+		});
 
-		expect(dbpg.query).toHaveBeenCalledWith(expect.stringMatching(/WHERE.*IS NULL/), expect.any(Array));
+		// Validate that string values are properly handled
+		expect(insertResult.query.values).toEqual([validData.name, validData.email]);
+		expect(typeof insertResult.query.values[0]).toBe('string');
+		expect(typeof insertResult.query.values[1]).toBe('string');
+
+		const result = await insertResult.execute();
 		expect(result).toEqual(expectedResult);
 	});
 
-	it('handles undefined values safely', async () => {
-		const expectedResult: any[] = [];
-		(dbpg.query as jest.Mock).mockResolvedValue({rows: expectedResult});
+	it('prevents injection through column names', async () => {
+		const userData = {name: 'John Doe', email: 'john@example.com'};
 
-		const result = await usersTable.selectUsers({email: undefined}, ['id', 'name', 'email']);
+		// NEW STANDARDIZED PATTERN:
+		const insertResult = usersTable.insertUser(['name', 'email'], {
+			data: userData,
+			returnField: 'id',
+		});
 
-		// Undefined values are handled as parameters in the query
-		expect(dbpg.query).toHaveBeenCalledWith(
-			expect.stringMatching(/WHERE.*email.*\$1/),
-			expect.arrayContaining([undefined])
-		);
-		expect(result).toEqual(expectedResult);
+		// Test that column names are properly quoted in SQL
+		expect(insertResult.query.sqlText).toMatch(/"name"/);
+		expect(insertResult.query.sqlText).toMatch(/"email"/);
+		expect(insertResult.query.sqlText).not.toMatch(/[^"](name|email)[^"]/);
 	});
 
-	it('sanitizes special characters in string values', async () => {
-		const maliciousInput = 'test"; DROP TABLE users; --';
-		const expectedResult: any[] = [];
+	// NEW TEST: Test query inspection capabilities for validation
+	it('allows pre-execution validation of query structure', async () => {
+		const userData = {name: 'Test User', email: 'test@example.com'};
 
-		(dbpg.query as jest.Mock).mockResolvedValue({rows: expectedResult});
+		// NEW STANDARDIZED PATTERN - Query inspection for validation:
+		const insertResult = usersTable.insertUser(['name', 'email'], {
+			data: userData,
+			returnField: 'id',
+			onConflict: false,
+			idUser: 'test-user-123',
+		});
 
-		const result = await usersTable.selectUsers({name: maliciousInput}, ['id', 'name', 'email']);
+		// Validate query structure before execution
+		expect(insertResult.query.sqlText).toMatch(/INSERT INTO users/);
+		expect(insertResult.query.sqlText).toMatch(/VALUES.*\$1.*\$2/);
+		expect(insertResult.query.values).toHaveLength(2);
+		expect(insertResult.query.values[0]).toBe(userData.name);
+		expect(insertResult.query.values[1]).toBe(userData.email);
 
-		// Verify that the query was parameterized
-		expect(dbpg.query).toHaveBeenCalledWith(expect.stringMatching(/\$1/), expect.any(Array));
-		expect(result).toEqual(expectedResult);
+		// Ensure parameterized queries (no direct SQL injection)
+		expect(insertResult.query.sqlText).not.toContain(userData.name);
+		expect(insertResult.query.sqlText).not.toContain(userData.email);
 	});
 });

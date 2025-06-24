@@ -1,8 +1,8 @@
-import {TableDefinition} from '@/types';
-import {TableBase} from '@/core/table-base';
-import {UsersSchema, usersColumns, UsersData} from '@tests/tables/definitions/users';
-import {QueryParams} from '@/types';
-import {QueryObject} from '@/utils/query-utils';
+import {TableDefinition} from '../../../src/types';
+import {TableBase} from '../../../src/core/table-base';
+import {UsersSchema, usersColumns, UsersData} from '../definitions/users';
+import {QueryParams} from '../../../src/types';
+import {QueryObject, QueryResult} from '../../../src/utils/query-utils';
 import {SelectUserDetailsInterface} from '../views/selectUserDetails';
 import predefinedUsersQueries from '../queries/predefined/users';
 
@@ -23,53 +23,77 @@ class UsersTable extends TableBase<UsersSchema> {
 	}
 
 	public insertUser(
-		dataToBeInserted: Partial<UsersData>,
 		allowedColumns: (keyof UsersSchema)[] | '*',
-		returnField: keyof UsersSchema,
-		onConflict: boolean,
-		idUser?: string
-	): {
-		queryObject: QueryObject;
-		execute: () => Promise<Partial<UsersData>[]>;
-	} {
-		return this.insert(dataToBeInserted, allowedColumns, returnField, onConflict, idUser || 'SERVER');
-	}
-
-	public async selectUsers(
-		params: QueryParams<UsersSchema>,
-		allowedColumns: (keyof UsersSchema)[] | '*'
-	): Promise<Partial<UsersData>[]> {
-		return this.select<UsersData>({
-			params,
+		options: {
+			data: Partial<UsersData>;
+			returnField?: keyof UsersSchema;
+			onConflict?: boolean;
+			idUser?: string;
+		}
+	): QueryResult<Partial<UsersData>[]> {
+		return this.insert({
 			allowedColumns,
-		}).execute();
+			options: {
+				data: options.data,
+				returnField: options.returnField,
+				onConflict: options.onConflict || false,
+				idUser: options.idUser || 'SERVER',
+			},
+		});
 	}
 
-	public async selectUserById(id: number): Promise<Partial<UsersData>[]> {
-		return this.select<UsersData>({
-			params: {id},
-			allowedColumns: '*',
-		}).execute();
-	}
-
-	public async selectUserDetails(
-		params: Record<string, any>,
+	public selectUsers(
 		allowedColumns: (keyof UsersSchema)[] | '*',
-		whereClause?: string
-	): Promise<Partial<SelectUserDetailsInterface>[]> {
+		options?: {
+			where?: QueryParams<UsersSchema>;
+			alias?: string;
+		}
+	): QueryResult<Partial<UsersData>[]> {
+		return this.select<UsersData>({
+			allowedColumns,
+			options: {
+				where: options?.where,
+				alias: options?.alias,
+			},
+		});
+	}
+
+	public selectUserById(id: number): QueryResult<Partial<UsersData>[]> {
+		return this.select<UsersData>({
+			allowedColumns: '*',
+			options: {
+				where: {id},
+			},
+		});
+	}
+
+	public selectUserDetails(
+		allowedColumns: (keyof UsersSchema)[] | '*',
+		options: {
+			where?: Record<string, any>;
+			whereClause?: string;
+		}
+	): QueryResult<Partial<SelectUserDetailsInterface>[]> {
 		let sqlText = this.predefinedQueries.selectUserDetails;
 
-		if (whereClause) {
-			sqlText += ` AND ${whereClause}`;
+		if (options.whereClause) {
+			sqlText += ` AND ${options.whereClause}`;
 		}
 
 		return this.select<SelectUserDetailsInterface>({
-			params,
 			allowedColumns,
 			predefinedSQL: {
 				sqlText,
 			},
-		}).execute();
+			options: {
+				where: options.where,
+			},
+		});
+	}
+
+	// Public transaction method to expose protected functionality
+	public transaction() {
+		return super.transaction();
 	}
 }
 

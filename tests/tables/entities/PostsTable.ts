@@ -1,8 +1,8 @@
-import {TableDefinition} from '@/types';
-import {TableBase} from '@/core/table-base';
-import {PostsSchema, postsColumns, PostsData} from '@tests/tables/definitions/posts';
-import {QueryParams} from '@/types';
-import {QueryObject} from '@/utils/query-utils';
+import {TableDefinition} from '../../../src/types';
+import {TableBase} from '../../../src/core/table-base';
+import {PostsSchema, postsColumns, PostsData} from '../definitions/posts';
+import {QueryParams} from '../../../src/types';
+import {QueryObject, QueryResult} from '../../../src/utils/query-utils';
 
 const postsTable: TableDefinition<PostsSchema> = {
 	tableName: 'posts',
@@ -17,33 +17,48 @@ class PostsTable extends TableBase<PostsSchema> {
 	}
 
 	public insertPost(
-		dataToBeInserted: Partial<PostsData>,
 		allowedColumns: (keyof PostsSchema)[] | '*',
-		returnField: keyof PostsSchema,
-		onConflict: boolean,
-		idUser?: string
-	): {
-		queryObject: QueryObject;
-		execute: () => Promise<Partial<PostsData>[]>;
-	} {
-		return this.insert(dataToBeInserted, allowedColumns, returnField, onConflict, idUser || 'SERVER');
-	}
-
-	public async selectPosts(
-		params: QueryParams<PostsSchema>,
-		allowedColumns: (keyof PostsSchema)[] | '*'
-	): Promise<Partial<PostsData>[]> {
-		return this.select<PostsData>({
-			params,
+		options: {
+			data: Partial<PostsData>;
+			returnField?: keyof PostsSchema;
+			onConflict?: boolean;
+			idUser?: string;
+		}
+	): QueryResult<Partial<PostsData>[]> {
+		return this.insert({
 			allowedColumns,
-		}).execute();
+			options: {
+				data: options.data,
+				returnField: options.returnField,
+				onConflict: options.onConflict || false,
+				idUser: options.idUser || 'SERVER',
+			},
+		});
 	}
 
-	public async selectPostById(id: number): Promise<Partial<PostsData>[]> {
+	public selectPosts(
+		allowedColumns: (keyof PostsSchema)[] | '*',
+		options?: {
+			where?: QueryParams<PostsSchema>;
+			alias?: string;
+		}
+	): QueryResult<Partial<PostsData>[]> {
 		return this.select<PostsData>({
-			params: {id},
+			allowedColumns,
+			options: {
+				where: options?.where,
+				alias: options?.alias,
+			},
+		});
+	}
+
+	public selectPostById(id: number): QueryResult<Partial<PostsData>[]> {
+		return this.select<PostsData>({
 			allowedColumns: '*',
-		}).execute();
+			options: {
+				where: {id},
+			},
+		});
 	}
 }
 

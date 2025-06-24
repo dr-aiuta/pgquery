@@ -1,7 +1,15 @@
 import {TableDefinition} from '../types/core-types';
 import {ColumnDefinition, SchemaToData, ColumnTypeMapping, QueryParams} from '../types/core-types';
 import {QueryArrayResult, QueryResultRow} from 'pg';
-import {QueryObject} from '../utils/query-utils';
+import {
+	QueryObject,
+	QueryResult,
+	TransactionResult,
+	BaseOptions,
+	InsertOptions,
+	SelectOptions,
+	UpdateOptions,
+} from '../utils/query-utils';
 import {DatabaseOperations} from './database-operations';
 
 /**
@@ -77,64 +85,36 @@ export abstract class TableBase<T extends Record<string, {type: keyof ColumnType
 	}
 
 	/**
-	 * Access to low-level insert operation
+	 * Access to low-level insert operation with new standardized interface
 	 * Protected method - only available to table implementers, not end users
-	 *
-	 * @param dataToBeInserted - Data to insert
-	 * @param allowedColumns - Allowed columns for insertion
-	 * @param returnField - Field to return after insertion
-	 * @param onConflict - Whether to handle conflicts
-	 * @param idUser - User ID for audit purposes
-	 * @param predefinedSQLText - Custom SQL text if needed
-	 * @returns Query object with execute method
 	 */
-	protected insert(
-		dataToBeInserted: Partial<SchemaToData<T>>,
-		allowedColumns: (keyof T)[] | '*',
-		returnField: keyof T,
-		onConflict: boolean = false,
-		idUser: string = 'SERVER',
-		predefinedSQLText?: string
-	): {queryObject: QueryObject; execute: () => Promise<Partial<SchemaToData<T>>[]>} {
-		return this.db.insert(dataToBeInserted, allowedColumns, returnField, onConflict, idUser, predefinedSQLText);
+	protected insert(input: BaseOptions<T> & {options: InsertOptions<T>}): QueryResult<Partial<SchemaToData<T>>[]> {
+		return this.db.insert(input);
 	}
 
 	/**
-	 * Access to low-level select operation
+	 * Access to low-level select operation with new standardized interface
 	 * Protected method - only available to table implementers, not end users
 	 */
 	protected select<U extends QueryResultRow = SchemaToData<T>>(
-		paramsObj: {
-			params?: QueryParams<T>;
-			allowedColumns?: (keyof T)[] | '*';
-			alias?: string;
-			allowedColumnsOptions?: ('limit' | 'offset')[];
-			predefinedSQL?: {sqlText: string; values?: any[]};
-			schemaColumns?: U;
-		} = {}
-	): {sqlText: string; values: any[]; execute: () => Promise<Partial<U>[]>} {
-		return this.db.select(paramsObj);
+		input: BaseOptions<T> & {options?: SelectOptions<T>} = {}
+	): QueryResult<Partial<U>[]> {
+		return this.db.select(input);
 	}
 
 	/**
-	 * Access to low-level update operation
+	 * Access to low-level update operation with new standardized interface
 	 * Protected method - only available to table implementers, not end users
 	 */
-	protected update(predefinedSQLText?: string): string {
-		return this.db.update(predefinedSQLText);
+	protected update(input: BaseOptions<T> & {options: UpdateOptions<T>}): QueryResult<Partial<SchemaToData<T>>[]> {
+		return this.db.update(input);
 	}
 
 	/**
-	 * Access to low-level transaction operation
+	 * Access to low-level transaction operation with new standardized interface
 	 * Protected method - only available to table implementers, not end users
 	 */
-	protected transaction(
-		queryObjects: QueryObject[] = [],
-		predefinedSQLText?: string
-	): {
-		queryObjects: QueryObject[];
-		execute: () => Promise<QueryArrayResult<any>[]>;
-	} {
-		return this.db.transaction(queryObjects, predefinedSQLText);
+	protected transaction(): TransactionResult<QueryArrayResult<any>[]> {
+		return this.db.transaction();
 	}
 }

@@ -1,8 +1,8 @@
-import {TableDefinition} from '@/types';
-import {TableBase} from '@/core/table-base';
-import {AddressesSchema, addressesColumns, AddressesData} from '@tests/tables/definitions/addresses';
-import {QueryParams} from '@/types';
-import {QueryObject} from '@/utils/query-utils';
+import {TableDefinition} from '../../../src/types';
+import {TableBase} from '../../../src/core/table-base';
+import {AddressesSchema, addressesColumns, AddressesData} from '../definitions/addresses';
+import {QueryParams} from '../../../src/types';
+import {QueryObject, QueryResult} from '../../../src/utils/query-utils';
 
 const addressesTable: TableDefinition<AddressesSchema> = {
 	tableName: 'addresses',
@@ -17,33 +17,48 @@ class AddressesTable extends TableBase<AddressesSchema> {
 	}
 
 	public insertAddress(
-		dataToBeInserted: Partial<AddressesData>,
 		allowedColumns: (keyof AddressesSchema)[] | '*',
-		returnField: keyof AddressesSchema,
-		onConflict: boolean,
-		idUser?: string
-	): {
-		queryObject: QueryObject;
-		execute: () => Promise<Partial<AddressesData>[]>;
-	} {
-		return this.insert(dataToBeInserted, allowedColumns, returnField, onConflict, idUser || 'SERVER');
-	}
-
-	public async selectAddresses(
-		params: QueryParams<AddressesSchema>,
-		allowedColumns: (keyof AddressesSchema)[] | '*'
-	): Promise<Partial<AddressesData>[]> {
-		return this.select<AddressesData>({
-			params,
+		options: {
+			data: Partial<AddressesData>;
+			returnField?: keyof AddressesSchema;
+			onConflict?: boolean;
+			idUser?: string;
+		}
+	): QueryResult<Partial<AddressesData>[]> {
+		return this.insert({
 			allowedColumns,
-		}).execute();
+			options: {
+				data: options.data,
+				returnField: options.returnField,
+				onConflict: options.onConflict || false,
+				idUser: options.idUser || 'SERVER',
+			},
+		});
 	}
 
-	public async selectAddressById(id: number): Promise<Partial<AddressesData>[]> {
+	public selectAddresses(
+		allowedColumns: (keyof AddressesSchema)[] | '*',
+		options?: {
+			where?: QueryParams<AddressesSchema>;
+			alias?: string;
+		}
+	): QueryResult<Partial<AddressesData>[]> {
 		return this.select<AddressesData>({
-			params: {id},
+			allowedColumns,
+			options: {
+				where: options?.where,
+				alias: options?.alias,
+			},
+		});
+	}
+
+	public selectAddressById(id: number): QueryResult<Partial<AddressesData>[]> {
+		return this.select<AddressesData>({
 			allowedColumns: '*',
-		}).execute();
+			options: {
+				where: {id},
+			},
+		});
 	}
 }
 
