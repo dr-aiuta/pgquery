@@ -9,6 +9,8 @@ import {
 	InsertOptions,
 	SelectOptions,
 	UpdateOptions,
+	CustomBaseOptions,
+	CustomSelectOptions,
 } from '../utils/query-utils';
 import {DatabaseOperations} from './database-operations';
 
@@ -100,6 +102,17 @@ export abstract class TableBase<T extends Record<string, {type: keyof ColumnType
 		input: BaseOptions<T> & {options?: SelectOptions<T>} = {}
 	): QueryResult<Partial<U>[]> {
 		return this.db.select(input);
+	}
+
+	/**
+	 * Access to custom select operation for predefined SQL with custom schema types
+	 * Allows filtering and column selection based on joined result schema
+	 * Protected method - only available to table implementers, not end users
+	 */
+	protected selectWithCustomSchema<U extends QueryResultRow, CustomSchema extends Record<string, any>>(
+		input: CustomBaseOptions<CustomSchema> & {options?: CustomSelectOptions<CustomSchema>}
+	): QueryResult<Partial<U>[]> {
+		return this.db.selectWithCustomSchema(input);
 	}
 
 	/**

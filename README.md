@@ -13,6 +13,7 @@ A lightweight, type-safe PostgreSQL query builder for Node.js with TypeScript su
 - 📊 **Support for complex views and joins** via predefined SQL
 - 🎨 **Predefined query templates** with CTE and aggregation support
 - 🔄 **JSON field operations** with nested property queries
+- 🆕 **Custom schema queries** for filtering by joined/aggregated columns
 - 📝 **Comprehensive logging** and error handling
 - 🧪 **Enhanced testability** with query inspection capabilities
 - ⚡ **Protected database operations** ensuring clean public APIs
@@ -315,6 +316,150 @@ const latestUsersResult = usersTable.selectUsers(['id', 'name', 'createdAt'], {
 const latestUsers = await latestUsersResult.execute();
 ```
 
+### Custom Schema Queries
+
+When working with complex queries that involve JOINs, CTEs, or aggregations, you often need to filter by columns that don't exist in your original table schema. The new `selectWithCustomSchema` method solves this problem by allowing you to define custom schema types for your joined results.
+
+#### The Problem
+
+Consider a predefined SQL query that joins multiple tables:
+
+```sql
+SELECT
+    u.id,
+    u.name,
+    u.email,
+    json_agg(p.*) as posts,
+    json_agg(a.*) as addresses
+FROM users u
+LEFT JOIN posts p ON u.id = p.user_id
+LEFT JOIN addresses a ON u.id = a.user_id
+GROUP BY u.id, u.name, u.email
+```
+
+With the regular `select` method, you cannot filter by `posts` or `addresses` because they don't exist in the `users` table schema. This would cause a TypeScript error:
+
+```typescript
+// ❌ This fails - 'posts' is not in UsersSchema
+const result = usersTable.selectUsers(['id', 'name'], {
+	where: {'posts.not': null}, // TypeScript error!
+});
+```
+
+#### The Solution: Custom Schema Queries
+
+First, define your custom schema interface for the joined result:
+
+```typescript
+// Define the custom result interface
+interface UserWithDetailsInterface {
+	id: number;
+	name: string;
+	email: string;
+	posts: PostData[] | null;
+	addresses: AddressData[] | null;
+}
+
+// Define the schema for query operations
+export const userWithDetailsColumns = {
+	id: {type: 'INTEGER', primaryKey: true},
+	name: {type: 'TEXT', notNull: true},
+	email: {type: 'TEXT'},
+	posts: {type: 'JSONB'},
+	addresses: {type: 'JSONB'},
+} as const;
+
+export type UserWithDetailsSchema = {
+	[K in keyof typeof userWithDetailsColumns]: ColumnDefinition;
+};
+```
+
+Then, use `selectWithCustomSchema` in your table class:
+
+```typescript
+class UsersTable extends TableBase<UsersSchema> {
+	private predefinedQueries = {
+		selectUsersWithDetails: `
+      SELECT 
+        u.id,
+        u.name,
+        u.email,
+        json_agg(p.*) as posts,
+        json_agg(a.*) as addresses
+      FROM users u
+      LEFT JOIN posts p ON u.id = p.user_id
+      LEFT JOIN addresses a ON u.id = a.user_id
+      GROUP BY u.id, u.name, u.email
+      WHERE 1=1
+    `,
+	};
+
+	public selectUsersWithDetails(
+		allowedColumns: (keyof UserWithDetailsSchema)[] | '*',
+		options: {
+			where?: QueryParams<UserWithDetailsSchema>;
+			whereClause?: string;
+		}
+	): QueryResult<Partial<UserWithDetailsInterface>[]> {
+		let sqlText = this.predefinedQueries.selectUsersWithDetails;
+
+		if (options.whereClause) {
+			sqlText += ` AND ${options.whereClause}`;
+		}
+
+		return this.selectWithCustomSchema<UserWithDetailsInterface, UserWithDetailsSchema>({
+			allowedColumns,
+			predefinedSQL: {sqlText},
+			options: {where: options.where},
+		});
+	}
+}
+```
+
+#### Usage Examples
+
+Now you can filter by any column in your joined result:
+
+```typescript
+// ✅ Filter by joined columns - this works!
+const usersWithPosts = await usersTable
+	.selectUsersWithDetails('*', {
+		where: {
+			'posts.not': null, // Users who have posts
+			'addresses.not': null, // Users who have addresses
+			'name.like': '%John%', // Name pattern matching
+		},
+	})
+	.execute();
+
+// ✅ Select specific columns from joined result
+const userSummary = await usersTable
+	.selectUsersWithDetails(['id', 'name', 'posts'], {
+		where: {'posts.not': null},
+	})
+	.execute();
+
+// ✅ Combine with additional WHERE conditions
+const recentActiveUsers = await usersTable
+	.selectUsersWithDetails(['id', 'name', 'email'], {
+		where: {
+			'id.in': [1, 2, 3, 4, 5],
+			'posts.not': null,
+			'addresses.not': null,
+		},
+		whereClause: "u.created_at > NOW() - INTERVAL '30 days'",
+	})
+	.execute();
+```
+
+#### Key Benefits
+
+- **✅ Type Safety**: Full TypeScript support for custom schemas
+- **✅ Filter by Joined Columns**: Query by aggregated or joined data
+- **✅ All Operators Supported**: Use `not`, `like`, `in`, and other operators
+- **✅ Query Inspection**: Access generated SQL before execution
+- **✅ Backward Compatible**: Existing `select` method unchanged
+
 ### Complex Queries with Predefined SQL
 
 For complex queries involving JOINs, CTEs, and aggregations:
@@ -394,12 +539,25 @@ const predefinedQueries = {
 	`,
 };
 
+// Define schema for the joined result
+export const userDetailsColumns = {
+	id: {type: 'INTEGER', primaryKey: true},
+	name: {type: 'TEXT', notNull: true},
+	email: {type: 'TEXT'},
+	posts: {type: 'JSONB'},
+	addresses: {type: 'JSONB'},
+} as const;
+
+export type UserDetailsSchema = {
+	[K in keyof typeof userDetailsColumns]: ColumnDefinition;
+};
+
 // Use in your table class
 class UsersTable extends TableBase<UsersSchema> {
 	public selectUserDetails(
-		allowedColumns: (keyof UsersSchema)[] | '*',
+		allowedColumns: (keyof UserDetailsSchema)[] | '*',
 		options: {
-			where?: Record<string, any>;
+			where?: QueryParams<UserDetailsSchema>;
 			whereClause?: string;
 		}
 	): QueryResult<Partial<UserDetailsView>[]> {
@@ -409,7 +567,8 @@ class UsersTable extends TableBase<UsersSchema> {
 			sqlText += ` AND ${options.whereClause}`;
 		}
 
-		return this.select<UserDetailsView>({
+		// Use selectWithCustomSchema for joined result filtering
+		return this.selectWithCustomSchema<UserDetailsView, UserDetailsSchema>({
 			allowedColumns,
 			predefinedSQL: {
 				sqlText,
@@ -421,17 +580,33 @@ class UsersTable extends TableBase<UsersSchema> {
 	}
 }
 
-// Usage
-const userDetailsResult = usersTable.selectUserDetails(['id', 'name'], {
-	where: {active: true},
+// Usage - Now you can filter by joined columns!
+const userDetailsResult = usersTable.selectUserDetails(['id', 'name', 'posts'], {
+	where: {
+		'posts.not': null, // Filter for users who have posts
+		'addresses.not': null, // Filter for users who have addresses
+		'name.like': '%John%', // Pattern matching on user name
+	},
 	whereClause: "u.created_at > NOW() - INTERVAL '30 days'",
 });
 
 // Inspect complex query
 console.log('Complex query SQL:', userDetailsResult.query.sqlText);
+console.log('Query parameters:', userDetailsResult.query.values);
 
 // Execute
 const userDetails = await userDetailsResult.execute();
+
+// Example: Get users with specific post counts
+const activeUsersResult = usersTable.selectUserDetails('*', {
+	where: {
+		'id.in': [1, 2, 3, 4, 5],
+		'posts.not': null,
+		'addresses.not': null,
+	},
+});
+
+const activeUsers = await activeUsersResult.execute();
 ```
 
 ## Testing and Debugging
@@ -482,6 +657,72 @@ describe('Transaction Builder', () => {
 		expect(transaction.queries).toHaveLength(2);
 		expect(transaction.queries[0].sqlText).toContain('INSERT INTO users');
 		expect(transaction.queries[1].sqlText).toContain('INSERT INTO users');
+	});
+});
+```
+
+### Custom Schema Query Testing
+
+```typescript
+describe('Custom Schema Queries', () => {
+	it('can filter by joined columns that are not in the original table schema', async () => {
+		const expectedResult = [
+			{
+				id: 1,
+				name: 'John Doe',
+				email: 'john.doe@example.com',
+				posts: [{id: 1, title: 'First Post', content: 'Content'}],
+				addresses: [{id: 1, street: 'Main St', city: 'New York'}],
+			},
+		];
+
+		// Mock the database response
+		(dbpg.query as jest.Mock).mockResolvedValue({rows: expectedResult});
+
+		// Test filtering by joined columns - this is the key benefit!
+		const result = await usersTable
+			.selectUserDetails('*', {
+				where: {
+					'posts.not': null, // Filter by posts (joined column)
+					'addresses.not': null, // Filter by addresses (joined column)
+				},
+			})
+			.execute();
+
+		expect(result).toEqual(expectedResult);
+	});
+
+	it('demonstrates the limitation of the original select method', async () => {
+		// Using the original selectUsers method - can only filter by columns in UsersSchema
+		const result = await usersTable
+			.selectUsers(['id', 'name', 'email'], {
+				where: {
+					id: 1,
+					name: 'John Doe',
+					// Can't filter by 'posts' here - would cause TypeScript error
+					// 'posts.not': null // ❌ This would fail - 'posts' is not in UsersSchema
+				},
+			})
+			.execute();
+
+		expect(result).toBeDefined();
+	});
+
+	it('supports complex filtering with multiple joined columns', async () => {
+		const selectResult = usersTable.selectUserDetails(['id', 'name', 'posts'], {
+			where: {
+				'id.in': [1, 2, 3],
+				'posts.not': null,
+				'addresses.not': null,
+				'name.like': '%John%',
+			},
+		});
+
+		// Verify the query structure
+		expect(selectResult.query.sqlText).toContain('WITH user_posts AS');
+		expect(selectResult.query.sqlText).toContain('LEFT JOIN posts_agg');
+		expect(selectResult.query.sqlText).toContain('LEFT JOIN addresses_agg');
+		expect(Array.isArray(selectResult.query.values)).toBe(true);
 	});
 });
 ```
@@ -556,6 +797,22 @@ export interface TransactionResult<T> {
 	execute(): Promise<T>;
 	add(query: QueryObject): TransactionResult<T>;
 }
+
+// Custom schema types for joined/complex queries
+export interface CustomBaseOptions<T extends Record<string, any>> {
+	allowedColumns?: (keyof T)[] | '*';
+	predefinedSQL: {
+		sqlText: string;
+		values?: any[];
+	};
+}
+
+export interface CustomSelectOptions<T extends Record<string, any>> {
+	where?: QueryParams<T>;
+	alias?: string;
+	includeMetadata?: boolean;
+	schemaColumns?: any;
+}
 ```
 
 ## Project Structure
@@ -586,16 +843,21 @@ src/
 
 The library includes comprehensive test coverage:
 
-- **✅ 30/30 tests passing**
+- **✅ 40/40 tests passing**
 - **Integration tests**: Real database operations
 - **Security tests**: SQL injection prevention, input validation
 - **Transaction tests**: Builder pattern and rollback scenarios
 - **Query inspection tests**: SQL structure validation
 - **Date range tests**: Complex filtering scenarios
+- **Custom schema tests**: Joined column filtering and type safety
 
 Test files:
 
 - `tests/integration/pg-lightquery/` - Core functionality tests
+  - `custom-schema-queries.test.ts` - Custom schema query testing
+  - `advanced-queries.test.ts` - Complex query operations
+  - `basic-crud.test.ts` - Basic CRUD operations
+  - `date-range.test.ts` - Date filtering scenarios
 - `tests/integration/security/` - Security-focused tests
 - `tests/tables/` - Table entity and definition tests
 
@@ -625,6 +887,32 @@ console.log(insertResult.query.values);
 // Execute when ready
 const users = await selectResult.execute();
 const newUser = await insertResult.execute();
+```
+
+### New Custom Schema Support
+
+**New Feature**: For complex queries with JOINs and aggregations:
+
+```typescript
+// Before: Limited to original table schema
+const result = table.select({
+	predefinedSQL: {sqlText: complexJoinQuery},
+	allowedColumns: ['id', 'name'], // Only original table columns
+	options: {where: {id: 1}}, // Can't filter by joined columns
+});
+
+// After: Full support for custom schemas
+const result = table.selectWithCustomSchema<CustomResultInterface, CustomSchema>({
+	predefinedSQL: {sqlText: complexJoinQuery},
+	allowedColumns: ['id', 'name', 'joinedColumn'], // Any column from result
+	options: {
+		where: {
+			id: 1,
+			'joinedColumn.not': null, // Filter by joined columns!
+			'aggregatedData.like': '%pattern%',
+		},
+	},
+});
 ```
 
 ## Dependencies

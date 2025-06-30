@@ -116,8 +116,33 @@ interface UpdateOptions<T extends Record<string, ColumnDefinition>> {
 	idUser?: string;
 }
 
+// Custom interfaces for predefined SQL with custom schema types
+interface CustomBaseOptions<T extends Record<string, any>> {
+	allowedColumns?: (keyof T)[] | '*';
+	predefinedSQL: {
+		sqlText: string;
+		values?: any[];
+	};
+}
+
+interface CustomSelectOptions<T extends Record<string, any>> {
+	where?: QueryParams<T>;
+	alias?: string;
+	includeMetadata?: boolean;
+	schemaColumns?: any;
+}
+
 // Export the new interfaces
-export type {QueryResult, TransactionResult, BaseOptions, InsertOptions, SelectOptions, UpdateOptions};
+export type {
+	QueryResult,
+	TransactionResult,
+	BaseOptions,
+	InsertOptions,
+	SelectOptions,
+	UpdateOptions,
+	CustomBaseOptions,
+	CustomSelectOptions,
+};
 
 export default {
 	extractInsertAndUpdateAssignmentParts,

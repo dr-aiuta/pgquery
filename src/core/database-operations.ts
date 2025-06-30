@@ -16,6 +16,8 @@ import {
 	InsertOptions,
 	SelectOptions,
 	UpdateOptions,
+	CustomBaseOptions,
+	CustomSelectOptions,
 } from '../utils/query-utils';
 import {queryConstructor} from './query-constructor';
 
@@ -124,6 +126,54 @@ export class DatabaseOperations<T extends Record<string, {type: keyof ColumnType
 			execute: async (): Promise<Partial<SchemaToData<T>>[]> => {
 				const result = await queryExecutor.executeInsertQuery<Partial<SchemaToData<T>>>(sqlText, values);
 				return result;
+			},
+		};
+	}
+
+	/**
+	 * Custom select operation for predefined SQL with custom schema types
+	 * Allows filtering and column selection based on joined result schema
+	 * Available to table implementers through composition
+	 */
+	public selectWithCustomSchema<U extends QueryResultRow, CustomSchema extends Record<string, any>>(
+		input: CustomBaseOptions<CustomSchema> & {options?: CustomSelectOptions<CustomSchema>}
+	): QueryResult<Partial<U>[]> {
+		const {allowedColumns = '*', predefinedSQL, options = {}} = input;
+		const {where = {}, alias = '', includeMetadata = false, schemaColumns} = options;
+
+		const selectAllColumns = allowedColumns === '*';
+		// For custom schema, we'll treat columns differently since we're not bound to the table schema
+		const treatedAllowedColumns = Array.isArray(allowedColumns) ? allowedColumns.map((col) => col.toString()) : ['*'];
+
+		let {sqlQuery: whereClause, urlQueryValuesArray} = queryConstructor(
+			selectAllColumns ? ['*'] : treatedAllowedColumns.map((col) => `"${col}"`),
+			where,
+			alias
+		);
+
+		let sqlText: string = '';
+
+		if (predefinedSQL) {
+			predefinedSQL.sqlText = predefinedSQL.sqlText.trim().replace(/;+$/, '');
+			let maxPlaceholder: number = findMaxPlaceholder(predefinedSQL.sqlText);
+			const adjustedWhereClause = adjustPlaceholders(whereClause, maxPlaceholder);
+			sqlText = `${predefinedSQL.sqlText} ${adjustedWhereClause}`;
+			urlQueryValuesArray = (predefinedSQL.values || []).concat(urlQueryValuesArray);
+		} else {
+			// This shouldn't happen since predefinedSQL is required for CustomBaseOptions
+			throw new Error('predefinedSQL is required when using selectWithCustomSchema');
+		}
+
+		const queryObject: QueryObject = {
+			sqlText,
+			values: urlQueryValuesArray,
+		};
+
+		return {
+			query: queryObject,
+			execute: async (): Promise<Partial<U>[]> => {
+				const result = await queryExecutor.executeSelectQuery(sqlText, urlQueryValuesArray);
+				return result as Partial<U>[];
 			},
 		};
 	}

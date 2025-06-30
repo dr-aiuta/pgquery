@@ -3,7 +3,7 @@ import {TableBase} from '../../../src/core/table-base';
 import {UsersSchema, usersColumns, UsersData} from '../definitions/users';
 import {QueryParams} from '../../../src/types';
 import {QueryObject, QueryResult} from '../../../src/utils/query-utils';
-import {SelectUserDetailsInterface} from '../views/selectUserDetails';
+import {SelectUserDetailsInterface, SelectUserDetailsSchema} from '../views/selectUserDetails';
 import predefinedUsersQueries from '../queries/predefined/users';
 
 const usersTable: TableDefinition<UsersSchema> = {
@@ -68,9 +68,9 @@ class UsersTable extends TableBase<UsersSchema> {
 	}
 
 	public selectUserDetails(
-		allowedColumns: (keyof UsersSchema)[] | '*',
+		allowedColumns: (keyof SelectUserDetailsSchema)[] | '*',
 		options: {
-			where?: Record<string, any>;
+			where?: QueryParams<SelectUserDetailsSchema>;
 			whereClause?: string;
 		}
 	): QueryResult<Partial<SelectUserDetailsInterface>[]> {
@@ -80,7 +80,7 @@ class UsersTable extends TableBase<UsersSchema> {
 			sqlText += ` AND ${options.whereClause}`;
 		}
 
-		return this.select<SelectUserDetailsInterface>({
+		return this.selectWithCustomSchema<SelectUserDetailsInterface, SelectUserDetailsSchema>({
 			allowedColumns,
 			predefinedSQL: {
 				sqlText,
