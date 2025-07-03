@@ -107,6 +107,7 @@ interface SelectOptions<T extends Record<string, ColumnDefinition>> {
 	alias?: string;
 	includeMetadata?: boolean;
 	schemaColumns?: any;
+	columnsToReturn?: (keyof T)[] | '*';
 }
 
 interface UpdateOptions<T extends Record<string, ColumnDefinition>> {

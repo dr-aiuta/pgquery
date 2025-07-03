@@ -64,7 +64,12 @@ export class DatabaseOperations<T extends Record<string, {type: keyof ColumnType
 		} else {
 			arrayUtils.checkArrayUniqueness(allowedColumns);
 			const schemaKeys = new Set(Object.keys(schemaColumns || this.schema.columns));
-			allowedColumns.forEach((column) => {
+
+			// Filter out pagination parameters before schema validation
+			const paginationParams = new Set(['limit', 'offset']);
+			const columnsToValidate = allowedColumns.filter((column) => !paginationParams.has(column as string));
+
+			columnsToValidate.forEach((column) => {
 				if (!schemaKeys.has(column as string)) {
 					throw new Error(`Column ${column.toString()} is not in the provided schema`);
 				}
@@ -181,45 +186,118 @@ export class DatabaseOperations<T extends Record<string, {type: keyof ColumnType
 	/**
 	 * Low-level select operation with new standardized interface
 	 * Available to table implementers through composition
+	 *
+	 * @param input - Configuration object containing:
+	 *   - allowedColumns: Controls which columns can be used in WHERE clauses (security/validation)
+	 *   - predefinedSQL: Optional pre-written SQL query to extend
+	 *   - options: Additional query options including:
+	 *     - columnsToReturn: Controls which columns are returned in the SELECT statement (projection)
+	 *     - where: Query conditions
+	 *     - alias: Table alias
+	 *     - etc.
+	 *
+	 * @example
+	 * // Security: Only allow filtering by 'id' and 'name', but return all columns
+	 * select({
+	 *   allowedColumns: ['id', 'name'],
+	 *   options: {
+	 *     where: { id: 123 },
+	 *     columnsToReturn: '*'
+	 *   }
+	 * })
+	 *
+	 * @example
+	 * // Projection: Allow all WHERE conditions, but only return specific columns
+	 * select({
+	 *   allowedColumns: '*',
+	 *   options: {
+	 *     where: { status: 'active' },
+	 *     columnsToReturn: ['id', 'name', 'email']
+	 *   }
+	 * })
 	 */
 	public select<U extends QueryResultRow = SchemaToData<T>>(
 		input: BaseOptions<T> & {options?: SelectOptions<T>} = {}
 	): QueryResult<Partial<U>[]> {
+		// Extract input parameters with defaults
+		// allowedColumns: which columns can be used in WHERE clauses (security/validation)
+		// predefinedSQL: optional pre-written SQL query to extend
+		// options: additional query options like where conditions, alias, columns to return, etc.
 		const {allowedColumns = '*', predefinedSQL, options = {}} = input;
-		const {where = {}, alias = '', includeMetadata = false, schemaColumns} = options;
+		const {where = {}, alias = '', includeMetadata = false, schemaColumns, columnsToReturn} = options;
 
-		const selectAllColumns = allowedColumns === '*';
+		// Determine which columns to return in the SELECT statement
+		// If columnsToReturn is not specified, fall back to allowedColumns for backward compatibility
+		const returnColumns = columnsToReturn !== undefined ? columnsToReturn : allowedColumns;
+		const selectAllColumns = returnColumns === '*';
+
+		// Process and validate the allowed columns for WHERE clause validation
+		// This ensures only valid columns are used in WHERE conditions and adds pagination support
 		const treatedAllowedColumns = this.treatAllowedColumns(allowedColumns, ['limit', 'offset'], schemaColumns);
 
+		// Process and validate the columns to return in the SELECT statement
+		// This determines what columns will be included in the result set
+		// NOTE: No pagination parameters should be included here as they're not returnable columns
+		const treatedColumnsToReturn = this.treatAllowedColumns(returnColumns, [], schemaColumns);
+
+		// Build the WHERE clause and extract parameter values
+		// The queryConstructor creates parameterized queries to prevent SQL injection
+		// It returns both the WHERE clause SQL and an array of parameter values
+		// We use treatedAllowedColumns here for WHERE clause validation (security)
 		let {sqlQuery: whereClause, urlQueryValuesArray} = queryConstructor(
-			treatedAllowedColumns.map((col) => `"${col.toString()}"`),
+			treatedAllowedColumns.map((col) => `"${col.toString()}"`), // Quote column names for SQL safety
 			where,
 			alias
 		);
 
+		// Initialize the final SQL query text
 		let sqlText: string = '';
 
+		// Branch 1: If predefinedSQL is provided, extend it with our WHERE clause
 		if (predefinedSQL) {
+			// Clean up the predefined SQL by removing trailing semicolons
 			predefinedSQL.sqlText = predefinedSQL.sqlText.trim().replace(/;+$/, '');
+
+			// Find the highest placeholder number in the predefined SQL (e.g., $1, $2, etc.)
+			// This is needed to avoid conflicts when adding new placeholders
 			let maxPlaceholder: number = findMaxPlaceholder(predefinedSQL.sqlText);
+
+			// Adjust placeholder numbers in our WHERE clause to avoid conflicts
+			// If predefined SQL has $1, $2, our WHERE clause placeholders become $3, $4, etc.
 			const adjustedWhereClause = adjustPlaceholders(whereClause, maxPlaceholder);
+
+			// Combine the predefined SQL with our WHERE clause
 			sqlText = `${predefinedSQL.sqlText} ${adjustedWhereClause}`;
+
+			// Merge parameter values: predefined values first, then our WHERE clause values
 			urlQueryValuesArray = (predefinedSQL.values || []).concat(urlQueryValuesArray);
 		} else {
+			// Branch 2: Build a standard SELECT query from scratch
+
+			// Determine which columns to select based on columnsToReturn (projection)
 			const columnsToSelect = selectAllColumns
-				? '*'
-				: treatedAllowedColumns.map((col) => `"${col.toString()}"`).join(', ');
+				? '*' // Select all columns
+				: treatedColumnsToReturn
+						.filter((col) => col !== 'limit' && col !== 'offset') // Remove pagination params from SELECT
+						.map((col) => `"${col.toString()}"`)
+						.join(', '); // Select specific columns
+
+			// Build the complete SELECT query
 			sqlText = `SELECT ${columnsToSelect} FROM ${this.tableName} ${whereClause}`;
 		}
 
+		// Create the query object that contains both SQL and parameter values
 		const queryObject: QueryObject = {
 			sqlText,
 			values: urlQueryValuesArray,
 		};
 
+		// Return a QueryResult object with the query and an execute function
 		return {
-			query: queryObject,
+			query: queryObject, // The SQL query and parameters for inspection/logging
 			execute: async (): Promise<Partial<U>[]> => {
+				// Execute the query and return the results
+				// executeSelectQuery handles the actual database communication
 				const result = await queryExecutor.executeSelectQuery(sqlText, urlQueryValuesArray);
 				return result as Partial<U>[];
 			},
