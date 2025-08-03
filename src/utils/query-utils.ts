@@ -137,7 +137,7 @@ interface BaseOptions<T extends Record<string, ColumnDefinition>> {
 
 interface InsertOptions<T extends Record<string, ColumnDefinition>> {
 	data: Partial<SchemaToData<T>>;
-	returnField?: keyof T;
+	returnField?: keyof T | '*';
 	onConflict?: boolean;
 	idUser?: string;
 }
@@ -153,7 +153,7 @@ interface SelectOptions<T extends Record<string, ColumnDefinition>> {
 interface UpdateOptions<T extends Record<string, ColumnDefinition>> {
 	data: Partial<SchemaToData<T>>;
 	where: QueryParams<T>; // Required for safety unless allowUpdateAll is true
-	returnField?: keyof T;
+	returnField?: keyof T | '*';
 	idUser?: string;
 	allowUpdateAll?: boolean; // Allows updates without WHERE clause (dangerous - use with caution)
 }

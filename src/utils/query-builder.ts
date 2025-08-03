@@ -57,7 +57,7 @@ export function buildInsertSqlQuery<T extends Record<string, ColumnDefinition>>(
 	onConflict: boolean,
 	primaryKeyColumns: UniqueArray<(keyof T)[]>,
 	conflictUpdateAssignments: string[],
-	returnField?: keyof T
+	returnField?: keyof T | '*'
 ): {sqlText: string; values: any[]} {
 	// Interpolating the values as $1, $2, $3, etc.
 	const placeholders = valuesForInsert.map((_, index) => `$${index + 1}`).join(', ');
@@ -70,7 +70,7 @@ VALUES (${placeholders})${
 			? ` ON CONFLICT ("${primaryKeyColumns.join(', ')}") DO UPDATE SET ${conflictUpdateAssignments.join(', ')}`
 			: ''
 	}
-${returnField ? `RETURNING "${String(returnField)}"` : ''};
+${returnField ? `RETURNING ${String(returnField) === '*' ? '*' : `"${String(returnField)}"`}` : ''};
 	`;
 
 	return {
@@ -97,7 +97,7 @@ export function buildUpdateSqlQuery<T extends Record<string, ColumnDefinition>>(
 	valuesForUpdate: any[],
 	whereClause: string,
 	whereValues: any[],
-	returnField?: keyof T
+	returnField?: keyof T | '*'
 ): {sqlText: string; values: any[]} {
 	// Create SET assignments like "column" = $1, "column2" = $2
 	const setAssignments = columnsForUpdate.map((column, index) => `"${String(column)}" = $${index + 1}`).join(', ');
@@ -115,7 +115,7 @@ SET ${setAssignments}
 ${adjustedWhereClause}${
 		returnField
 			? `
-RETURNING "${String(returnField)}"`
+RETURNING ${String(returnField) === '*' ? '*' : `"${String(returnField)}"`}`
 			: ''
 	};
 	`.trim();

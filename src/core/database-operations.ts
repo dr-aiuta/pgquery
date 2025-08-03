@@ -359,24 +359,60 @@ export class DatabaseOperations<T extends Record<string, {type: keyof ColumnType
 		}
 
 		// Build the complete UPDATE SQL query
-		const {sqlText, values} = queryBuilder.buildUpdateSqlQuery(
-			this.tableName,
-			columnsNamesForUpdate,
-			columnValuesForUpdate,
-			whereClause,
-			whereValues,
-			returnField
-		);
+		let finalSqlText: string;
+		let finalValues: any[];
+
+		if (predefinedSQL) {
+			// Handle predefined SQL case - similar to select method
+			// Clean up the predefined SQL by removing trailing semicolons
+			predefinedSQL.sqlText = predefinedSQL.sqlText.trim().replace(/;+$/, '');
+
+			// Find the highest placeholder number in the predefined SQL
+			const maxPlaceholder = findMaxPlaceholder(predefinedSQL.sqlText);
+
+			// Adjust placeholders in the standard UPDATE query to avoid conflicts
+			const {sqlText: updateSqlText, values: updateValues} = queryBuilder.buildUpdateSqlQuery(
+				this.tableName,
+				columnsNamesForUpdate,
+				columnValuesForUpdate,
+				whereClause,
+				whereValues,
+				returnField
+			);
+
+			// Adjust placeholder numbers in the UPDATE query to avoid conflicts
+			const adjustedUpdateSql = adjustPlaceholders(updateSqlText, maxPlaceholder);
+
+			// Combine predefined SQL with UPDATE operation
+			// Note: This assumes predefined SQL provides additional context/CTEs/etc.
+			// The actual UPDATE operation should still be the main query
+			finalSqlText = `${predefinedSQL.sqlText}; ${adjustedUpdateSql}`;
+
+			// Merge parameter values: predefined values first, then update values
+			finalValues = (predefinedSQL.values || []).concat(updateValues);
+		} else {
+			// Standard UPDATE query without predefined SQL
+			const {sqlText, values} = queryBuilder.buildUpdateSqlQuery(
+				this.tableName,
+				columnsNamesForUpdate,
+				columnValuesForUpdate,
+				whereClause,
+				whereValues,
+				returnField
+			);
+			finalSqlText = sqlText;
+			finalValues = values;
+		}
 
 		const queryObject: QueryObject = {
-			sqlText,
-			values,
+			sqlText: finalSqlText,
+			values: finalValues,
 		};
 
 		return {
 			query: queryObject,
 			execute: async (): Promise<Partial<SchemaToData<T>>[]> => {
-				const result = await queryExecutor.executeUpdateQuery<Partial<SchemaToData<T>>>(sqlText, values);
+				const result = await queryExecutor.executeUpdateQuery<Partial<SchemaToData<T>>>(finalSqlText, finalValues);
 				return result;
 			},
 		};
