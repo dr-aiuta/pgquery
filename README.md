@@ -98,6 +98,18 @@ class UsersTable extends TableBase<UsersSchema> {
 			},
 		});
 	}
+
+	// Safe update with required WHERE clause
+	updateUser(data: {name?: string; email?: string}, where: {id?: number; email?: string}) {
+		return this.update({
+			allowedColumns: ['name', 'email'],
+			options: {
+				data,
+				where,
+				returnField: 'id',
+			},
+		});
+	}
 }
 
 const users = new UsersTable();
@@ -116,6 +128,10 @@ const newUser = await insertQuery.execute();
 
 // Or execute immediately
 const allUsers = await users.selectUsers().execute();
+
+// Update with WHERE clause (required for safety)
+const updateQuery = users.updateUser({name: 'John Updated'}, {id: 1});
+const updatedUser = await updateQuery.execute();
 ```
 
 ## Core Features
@@ -201,6 +217,66 @@ console.log('Queries:', transaction.queries.length);
 const results = await transaction.execute();
 ```
 
+### ✏️ Safe Update Operations
+
+Built-in safety features to prevent accidental mass updates:
+
+```typescript
+// Basic update with required WHERE clause
+const updateQuery = users.updateUser({name: 'John Updated', email: 'john.new@example.com'}, {id: 1});
+
+// Inspect before execution
+console.log(updateQuery.query.sqlText);
+// OUTPUT: UPDATE users SET "name" = $1, "email" = $2, "lastChangedBy" = $3 WHERE "id" = $4
+
+// Execute when ready
+const updatedUser = await updateQuery.execute();
+```
+
+#### 🛡️ Safety Features
+
+**Required WHERE clause** - Prevents accidental mass updates:
+
+```typescript
+// ❌ This will throw an error
+users.updateUser({name: 'New Name'}, {}); // Empty WHERE clause
+// Error: WHERE clause is required for UPDATE operations
+
+// ✅ Explicit mass update (use with caution)
+users.updateUser({lastLoginAt: new Date()}, {}, {allowUpdateAll: true});
+```
+
+#### 🎯 Advanced Update Options
+
+```typescript
+// Update with smart operators in WHERE clause
+await users.updateUser({status: 'inactive'}, {'email.like': '%@oldcompany.com'}).execute();
+
+// Update with RETURNING clause
+const updatedUser = await users.updateUser({name: 'Updated Name'}, {id: 1}, {returnField: 'id'}).execute();
+
+// Track who made the change
+await users.updateUser({name: 'Admin Updated'}, {id: 1}, {idUser: 'admin-123'}).execute();
+```
+
+#### 🔍 Update Query Inspection
+
+```typescript
+const updateQuery = users.updateUser({name: 'John', email: 'john@new.com'}, {id: 1});
+
+// Full query inspection
+console.log('SQL:', updateQuery.query.sqlText);
+console.log('Parameters:', updateQuery.query.values);
+console.log('Parameter count:', updateQuery.query.values.length);
+
+// Generated SQL:
+// UPDATE users
+// SET "name" = $1, "email" = $2, "lastChangedBy" = $3
+// WHERE "id" = $4
+//
+// Parameters: ['John', 'john@new.com', 'SERVER', 1]
+```
+
 ### 🎯 Complex Joins with Type Safety
 
 Filter by joined/aggregated columns that don't exist in your base table:
@@ -277,14 +353,15 @@ describe('User Operations', () => {
 
 ## Compared to Other Libraries
 
-| Feature              | pg-lightquery | Prisma     | TypeORM    | Raw SQL   |
-| -------------------- | ------------- | ---------- | ---------- | --------- |
-| **Type Safety**      | ✅ Full       | ✅ Full    | ⚠️ Partial | ❌ None   |
-| **Query Inspection** | ✅ Built-in   | ❌ No      | ❌ No      | ✅ Manual |
-| **Bundle Size**      | ✅ Small      | ❌ Large   | ❌ Large   | ✅ None   |
-| **Complex Joins**    | ✅ Type-safe  | ⚠️ Limited | ⚠️ Limited | ✅ Manual |
-| **Learning Curve**   | ✅ Minimal    | ❌ Steep   | ❌ Steep   | ✅ None   |
-| **Flexibility**      | ✅ High       | ⚠️ Medium  | ⚠️ Medium  | ✅ Full   |
+| Feature              | pg-lightquery     | Prisma     | TypeORM    | Raw SQL   |
+| -------------------- | ----------------- | ---------- | ---------- | --------- |
+| **Type Safety**      | ✅ Full           | ✅ Full    | ⚠️ Partial | ❌ None   |
+| **Query Inspection** | ✅ Built-in       | ❌ No      | ❌ No      | ✅ Manual |
+| **Bundle Size**      | ✅ Small          | ❌ Large   | ❌ Large   | ✅ None   |
+| **Complex Joins**    | ✅ Type-safe      | ⚠️ Limited | ⚠️ Limited | ✅ Manual |
+| **Update Safety**    | ✅ Required WHERE | ⚠️ Manual  | ⚠️ Manual  | ⚠️ Manual |
+| **Learning Curve**   | ✅ Minimal        | ❌ Steep   | ❌ Steep   | ✅ None   |
+| **Flexibility**      | ✅ High           | ⚠️ Medium  | ⚠️ Medium  | ✅ Full   |
 
 ## API Reference
 

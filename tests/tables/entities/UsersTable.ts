@@ -91,6 +91,28 @@ class UsersTable extends TableBase<UsersSchema> {
 		});
 	}
 
+	public updateUser(
+		allowedColumns: (keyof UsersSchema)[] | '*',
+		options: {
+			data: Partial<UsersData>;
+			where: QueryParams<UsersSchema>;
+			returnField?: keyof UsersSchema;
+			idUser?: string;
+			allowUpdateAll?: boolean;
+		}
+	): QueryResult<Partial<UsersData>[]> {
+		return this.update({
+			allowedColumns,
+			options: {
+				data: options.data,
+				where: options.where,
+				returnField: options.returnField,
+				idUser: options.idUser || 'SERVER',
+				allowUpdateAll: options.allowUpdateAll || false,
+			},
+		});
+	}
+
 	// Public transaction method to expose protected functionality
 	public transaction() {
 		return super.transaction();

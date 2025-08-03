@@ -49,6 +49,46 @@ export function extractInsertAndUpdateAssignmentParts<T extends Record<string, C
 	return {columnsNamesForInsert, columnValuesForInsert, assignmentsForConflictUpdate};
 }
 
+/**
+ * Extracts column names and values for update operations.
+ *
+ * @param dataToBeUpdated - An object containing key-value pairs where keys are column names and values are the values to update.
+ * @param allowedColumns - An array of allowed column names to include in the update operation.
+ * @param tableColumns - An object representing the table's columns and their definitions.
+ * @param idUser - User ID for tracking changes.
+ *
+ * @returns An object containing:
+ *   - columnsNamesForUpdate: Column names to be included in the update operation.
+ *   - columnValuesForUpdate: Values to be updated corresponding to the column names.
+ */
+export function extractUpdateParts<T extends Record<string, ColumnDefinition>>(
+	dataToBeUpdated: Partial<SchemaToData<T>>,
+	allowedColumns: UniqueArray<(keyof T)[]>,
+	tableColumns: {[K in keyof T]: ColumnDefinition},
+	idUser: string
+): {
+	columnsNamesForUpdate: string[];
+	columnValuesForUpdate: any[];
+} {
+	const columnsNamesForUpdate: string[] = [];
+	const columnValuesForUpdate: any[] = [];
+
+	Object.entries(dataToBeUpdated).forEach(([column, value]) => {
+		if (allowedColumns.includes(column as keyof T) && value !== undefined && value !== null) {
+			columnsNamesForUpdate.push(column);
+			columnValuesForUpdate.push(value);
+		}
+	});
+
+	// Add lastChangedBy if it exists in the table schema
+	if ('lastChangedBy' in tableColumns) {
+		columnsNamesForUpdate.push('lastChangedBy');
+		columnValuesForUpdate.push(idUser);
+	}
+
+	return {columnsNamesForUpdate, columnValuesForUpdate};
+}
+
 export type QueryObject = {
 	sqlText: string;
 	values: any[];
@@ -112,9 +152,10 @@ interface SelectOptions<T extends Record<string, ColumnDefinition>> {
 
 interface UpdateOptions<T extends Record<string, ColumnDefinition>> {
 	data: Partial<SchemaToData<T>>;
-	where: QueryParams<T>; // Required for safety
+	where: QueryParams<T>; // Required for safety unless allowUpdateAll is true
 	returnField?: keyof T;
 	idUser?: string;
+	allowUpdateAll?: boolean; // Allows updates without WHERE clause (dangerous - use with caution)
 }
 
 // Custom interfaces for predefined SQL with custom schema types

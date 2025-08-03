@@ -18,6 +18,7 @@ import {
 	UpdateOptions,
 	CustomBaseOptions,
 	CustomSelectOptions,
+	extractUpdateParts,
 } from '../utils/query-utils';
 import {queryConstructor} from './query-constructor';
 
@@ -310,11 +311,62 @@ export class DatabaseOperations<T extends Record<string, {type: keyof ColumnType
 	 */
 	public update(input: BaseOptions<T> & {options: UpdateOptions<T>}): QueryResult<Partial<SchemaToData<T>>[]> {
 		const {allowedColumns = '*', predefinedSQL, options} = input;
-		const {data, where, returnField, idUser = 'SERVER'} = options;
+		const {data, where, returnField, idUser = 'SERVER', allowUpdateAll = false} = options;
 
-		// Basic implementation - you can expand this based on your needs
-		const sqlText = `UPDATE ${this.tableName} SET ... WHERE ...`;
-		const values: any[] = [];
+		// Safety check: WHERE clause is required for updates to prevent accidental mass updates
+		const hasWhereClause = where && Object.keys(where).length > 0;
+		if (!hasWhereClause && !allowUpdateAll) {
+			throw new Error(
+				'WHERE clause is required for UPDATE operations. Set allowUpdateAll: true if you intentionally want to update all rows.'
+			);
+		}
+
+		// Validate and process allowed columns
+		const treatedAllowedColumns = this.treatAllowedColumns(allowedColumns);
+
+		// Extract update data parts
+		const {columnsNamesForUpdate, columnValuesForUpdate} = extractUpdateParts(
+			data,
+			treatedAllowedColumns,
+			this.schema.columns,
+			idUser
+		);
+
+		// Validate that there's data to update
+		if (columnsNamesForUpdate.length === 0) {
+			throw new Error('No valid columns provided for update operation.');
+		}
+
+		// Build WHERE clause using queryConstructor (only if WHERE conditions exist)
+		let whereClause = '';
+		let whereValues: any[] = [];
+
+		if (hasWhereClause) {
+			// Use '*' for allowedColumns to allow all columns in WHERE clause,
+			// since we already validated allowed columns above
+			const whereResult = queryConstructor(
+				['*'], // Allow all columns for WHERE clause
+				where!,
+				'' // no alias for simple updates
+			);
+			whereClause = whereResult.sqlQuery;
+			whereValues = whereResult.urlQueryValuesArray;
+
+			// Ensure WHERE clause was generated when expected
+			if (!whereClause.trim()) {
+				throw new Error('Failed to generate WHERE clause for update operation.');
+			}
+		}
+
+		// Build the complete UPDATE SQL query
+		const {sqlText, values} = queryBuilder.buildUpdateSqlQuery(
+			this.tableName,
+			columnsNamesForUpdate,
+			columnValuesForUpdate,
+			whereClause,
+			whereValues,
+			returnField
+		);
 
 		const queryObject: QueryObject = {
 			sqlText,
@@ -324,8 +376,8 @@ export class DatabaseOperations<T extends Record<string, {type: keyof ColumnType
 		return {
 			query: queryObject,
 			execute: async (): Promise<Partial<SchemaToData<T>>[]> => {
-				// Implement update execution logic
-				return [];
+				const result = await queryExecutor.executeUpdateQuery<Partial<SchemaToData<T>>>(sqlText, values);
+				return result;
 			},
 		};
 	}

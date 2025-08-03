@@ -73,8 +73,36 @@ export async function executeTransactionQuery(queryObjects: QueryObject[] = []):
 	return results;
 }
 
+/**
+ * Executes the provided SQL UPDATE query.
+ *
+ * @param sqlText - The SQL UPDATE query string to be executed.
+ * @param values - An array of values for parameterized queries.
+ *
+ * @returns An array of updated rows (if RETURNING clause is used).
+ *
+ * @throws Throws an error if the query fails.
+ */
+export async function executeUpdateQuery<T>(sqlText: string, values: any[]): Promise<T[]> {
+	try {
+		const result = await dbpg.query(sqlText, values);
+		return result.rows;
+	} catch (error: any) {
+		if (error.message.includes('violates unique constraint')) {
+			console.log('Unique constraint violation during update:', error.message);
+		} else if (error.message.includes('violates foreign key constraint')) {
+			console.log('Foreign key constraint violation during update:', error.message);
+		} else if (error.message.includes('violates check constraint')) {
+			console.log('Check constraint violation during update:', error.message);
+		}
+		console.error('Error executing update query:', error.message);
+		throw error;
+	}
+}
+
 export default {
 	executeInsertQuery,
 	executeTransactionQuery,
 	executeSelectQuery,
+	executeUpdateQuery,
 };

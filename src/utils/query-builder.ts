@@ -79,6 +79,57 @@ ${returnField ? `RETURNING "${String(returnField)}"` : ''};
 	};
 }
 
+/**
+ * Constructs an SQL UPDATE query with WHERE clause and optional returning clause.
+ *
+ * @param tableName - The name of the table to update.
+ * @param columnsForUpdate - Array of column names to be updated.
+ * @param valuesForUpdate - Array of values corresponding to the columns to be updated.
+ * @param whereClause - The WHERE clause (without the WHERE keyword).
+ * @param whereValues - Array of values for the WHERE clause parameters.
+ * @param returnField - The field(s) to be returned after the update operation.
+ *
+ * @returns Object The constructed SQL UPDATE query string and an array of values.
+ */
+export function buildUpdateSqlQuery<T extends Record<string, ColumnDefinition>>(
+	tableName: string,
+	columnsForUpdate: UniqueArray<(keyof T)[]>,
+	valuesForUpdate: any[],
+	whereClause: string,
+	whereValues: any[],
+	returnField?: keyof T
+): {sqlText: string; values: any[]} {
+	// Create SET assignments like "column" = $1, "column2" = $2
+	const setAssignments = columnsForUpdate.map((column, index) => `"${String(column)}" = $${index + 1}`).join(', ');
+
+	// Adjust WHERE clause parameter indices to start after SET parameters
+	const adjustedWhereClause = whereClause.replace(/\$(\d+)/g, (match, num) => {
+		const newNum = parseInt(num, 10) + valuesForUpdate.length;
+		return `$${newNum}`;
+	});
+
+	// Building the SQL text
+	const sqlText = `
+UPDATE ${tableName}
+SET ${setAssignments}
+${adjustedWhereClause}${
+		returnField
+			? `
+RETURNING "${String(returnField)}"`
+			: ''
+	};
+	`.trim();
+
+	// Combine values: SET values first, then WHERE values
+	const allValues = [...valuesForUpdate, ...whereValues];
+
+	return {
+		sqlText,
+		values: allValues,
+	};
+}
+
 export default {
 	buildInsertSqlQuery,
+	buildUpdateSqlQuery,
 };
