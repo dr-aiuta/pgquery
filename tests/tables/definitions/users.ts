@@ -1,4 +1,4 @@
-import {ColumnDefinition, SchemaToData, Mutable, QueryParams} from '@/types';
+import {ColumnDefinition, SchemaToData, Mutable, QueryParams} from '../../../src/types';
 
 // Define a type for the array of column names
 export type UsersColumnName = 'id' | 'name' | 'email' | 'createdAt' | 'updatedAt' | 'lastChangedBy';
