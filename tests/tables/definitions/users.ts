@@ -1,7 +1,7 @@
 import {ColumnDefinition, SchemaToData, Mutable, QueryParams} from '@/types';
 
 // Define a type for the array of column names
-export type UsersColumnName = 'id' | 'name' | 'email' | 'createdAt' | 'updatedAt';
+export type UsersColumnName = 'id' | 'name' | 'email' | 'createdAt' | 'updatedAt' | 'lastChangedBy';
 
 export type UsersSchema = {
 	[K in UsersColumnName]: ColumnDefinition;
@@ -30,6 +30,10 @@ export const usersColumns = {
 		type: 'TIMESTAMP WITHOUT TIME ZONE',
 		notNull: true,
 		default: 'NOW()',
+	},
+	lastChangedBy: {
+		type: 'TEXT',
+		notNull: false,
 	},
 } as const;
 

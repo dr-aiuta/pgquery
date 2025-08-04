@@ -76,8 +76,8 @@ describe('Table Operations - Basic CRUD Operations', () => {
 
 		// Test that we can inspect the query without executing
 		expect(insertResult.query.sqlText).toMatch(/INSERT INTO users/);
-		expect(insertResult.query.sqlText).toMatch(/VALUES.*\$1.*\$2/);
-		expect(insertResult.query.values).toEqual([userData.name, userData.email]);
+		expect(insertResult.query.sqlText).toMatch(/VALUES.*\$1.*\$2.*\$3/);
+		expect(insertResult.query.values).toEqual([userData.name, userData.email, 'SERVER']);
 
 		// Test that execute function exists
 		expect(typeof insertResult.execute).toBe('function');
@@ -178,10 +178,11 @@ describe('Table Operations - Basic CRUD Operations', () => {
 		// Test that we can inspect the query without executing
 		expect(updateResult.query.sqlText).toMatch(/UPDATE users/);
 		expect(updateResult.query.sqlText).toMatch(/SET.*=.*\$1.*=.*\$2/);
-		expect(updateResult.query.sqlText).toMatch(/WHERE.*"id".*=.*\$3/);
+		expect(updateResult.query.sqlText).toMatch(/WHERE.*"id".*=.*\$4/);
 		expect(updateResult.query.values).toEqual([
 			updateData.name,
 			updateData.email,
+			'SERVER', // lastChangedBy value (default)
 			1, // WHERE id value
 		]);
 

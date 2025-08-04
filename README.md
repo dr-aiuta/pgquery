@@ -9,18 +9,23 @@ A modern, type-safe PostgreSQL query builder for Node.js with TypeScript support
 - **Query Inspection**: See generated SQL and parameters before execution
 - **Type Safety**: Full TypeScript support with auto-completion
 - **Zero Learning Curve**: Intuitive API that mirrors your mental model
+- **Chained Inserts**: Fluent CTE-based multi-table operations
+- **Related Tables Registry**: Simplified management of table relationships
 
 **🚀 Superior Architecture**
 
 - **Deferred Execution**: Build queries separately, execute when ready
 - **Composition Over Inheritance**: Clean, testable code structure
 - **Security First**: Separate concerns for column validation and data projection
+- **Enhanced TableBase**: Built-in support for complex table relationships
 
 **⚡ Advanced Features**
 
 - **Smart Operators**: Built-in support for `LIKE`, `IN`, date ranges, JSON queries
 - **Complex Joins**: Filter by joined/aggregated columns with full type safety
 - **Transaction Builder**: Fluent interface for multi-query transactions
+- **Chained Insert Builder**: Type-safe CTE operations for complex multi-table inserts
+- **Optional Audit Fields**: Automatic `lastChangedBy` tracking with configurable defaults
 - **Minimal Dependencies**: Only 4 core dependencies
 
 ## Installation
@@ -55,6 +60,7 @@ export const usersColumns = {
 	name: {type: 'TEXT', notNull: true},
 	email: {type: 'TEXT', unique: true},
 	createdAt: {type: 'TIMESTAMP WITHOUT TIME ZONE', notNull: true, default: 'NOW()'},
+	lastChangedBy: {type: 'TEXT', notNull: false}, // Optional audit field
 } as const;
 
 export type UsersSchema = {
@@ -70,8 +76,9 @@ const usersTable: TableDefinition<UsersSchema> = {
 ### 3. Create Your Table Class
 
 ```typescript
-import {TableBase} from 'pg-lightquery';
+import {TableBase, EnhancedTableBase} from 'pg-lightquery';
 
+// Basic table class
 class UsersTable extends TableBase<UsersSchema> {
 	constructor() {
 		super(usersTable);
@@ -112,7 +119,40 @@ class UsersTable extends TableBase<UsersSchema> {
 	}
 }
 
+// Enhanced table class with related tables support
+class EnhancedUsersTable extends EnhancedTableBase<UsersSchema> {
+	constructor() {
+		super(usersTable);
+
+		// Register related tables for chained operations
+		this.registerRelatedTable('posts', {tableDefinition: postsTable});
+		this.registerRelatedTable('addresses', {tableDefinition: addressesTable});
+	}
+
+	// Complex multi-table insert with CTE support
+	createUserWithProfile(userData: {name: string; email: string}, includePost = false, includeAddress = false) {
+		const postData = {title: 'Welcome Post', content: 'Welcome to our platform!'};
+		const addressData = {street: '123 Default St', city: 'Default City'};
+
+		return this.createChainedInsert()
+			.insert('new_user', this.db, userData, {returnField: '*'})
+			.insertWithReferenceIf(includePost, 'user_post', this.getRelatedTable('posts'), postData, {
+				from: 'new_user',
+				field: 'id',
+				to: 'userId',
+			})
+			.insertWithReferenceIf(includeAddress, 'user_address', this.getRelatedTable('addresses'), addressData, {
+				from: 'new_user',
+				field: 'id',
+				to: 'userId',
+			})
+			.selectFrom('new_user')
+			.build();
+	}
+}
+
 const users = new UsersTable();
+const enhancedUsers = new EnhancedUsersTable();
 ```
 
 ### 4. Use It
@@ -132,6 +172,15 @@ const allUsers = await users.selectUsers().execute();
 // Update with WHERE clause (required for safety)
 const updateQuery = users.updateUser({name: 'John Updated'}, {id: 1});
 const updatedUser = await updateQuery.execute();
+
+// Complex multi-table operations
+const userWithProfile = await enhancedUsers
+	.createUserWithProfile(
+		{name: 'John', email: 'john@example.com'},
+		true, // include post
+		true // include address
+	)
+	.execute();
 ```
 
 ## Core Features
@@ -149,6 +198,83 @@ console.log(query.query.values); // ["John"]
 
 // Execute when ready
 const results = await query.execute();
+```
+
+### 🔗 Chained Insert Builder
+
+Build complex multi-table operations with automatic CTE handling:
+
+```typescript
+import {createChainedInsert} from 'pg-lightquery';
+
+// Simple chained insert
+const result = createChainedInsert()
+	.insert('new_user', usersDb, userData, {returnField: '*'})
+	.insertWithReference('user_post', postsDb, postData, {
+		from: 'new_user',
+		field: 'id',
+		to: 'userId',
+	})
+	.selectFrom('new_user')
+	.build();
+
+// Conditional inserts
+const result = createChainedInsert()
+	.insert('new_user', usersDb, userData, {returnField: '*'})
+	.insertWithReferenceIf(hasAddress, 'user_address', addressesDb, addressData, {
+		from: 'new_user',
+		field: 'id',
+		to: 'userId',
+	})
+	.selectFrom('new_user')
+	.build();
+
+// Execute the chained operation
+const newUser = await result.execute();
+```
+
+### 🏗️ Enhanced TableBase
+
+Simplify complex table relationships with built-in registry:
+
+```typescript
+class PlacesTable extends EnhancedTableBase<PlacesSchema> {
+	constructor() {
+		super(placesTable);
+
+		// Register related tables
+		this.registerRelatedTable('places_contacts', {tableDefinition: placesContactsTable});
+		this.registerRelatedTable('places_contacts_billing', {tableDefinition: placesContactsBillingTable});
+	}
+
+	insertPlaceWithRelations(data: PlacesData, idContact: number, isBilling = false) {
+		return this.createChainedInsert()
+			.insert('place', this.db, data)
+			.insertWithReference(
+				'place_contact',
+				'places_contacts',
+				{idContact},
+				{
+					from: 'place',
+					field: 'idPlace',
+					to: 'idPlace',
+				}
+			)
+			.insertWithReferenceIf(
+				isBilling,
+				'billing',
+				'places_contacts_billing',
+				{},
+				{
+					from: 'place_contact',
+					field: 'idPlaceContact',
+					to: 'idPlaceContact',
+				}
+			)
+			.selectFrom('place')
+			.build();
+	}
+}
 ```
 
 ### 🎨 Smart Query Operators
@@ -277,6 +403,24 @@ console.log('Parameter count:', updateQuery.query.values.length);
 // Parameters: ['John', 'john@new.com', 'SERVER', 1]
 ```
 
+### 📊 Optional Audit Fields
+
+Automatic `lastChangedBy` tracking with configurable defaults:
+
+```typescript
+// Automatic audit field addition (when present in schema)
+const insertQuery = users.insertUser({name: 'John', email: 'john@example.com'});
+// Automatically includes lastChangedBy: 'SERVER' if field exists in schema
+
+// Custom audit tracking
+const insertQuery = users.insertUser({name: 'John', email: 'john@example.com'}, {idUser: 'admin-123'});
+// Uses custom idUser value for lastChangedBy
+
+// Update with audit tracking
+const updateQuery = users.updateUser({name: 'Updated'}, {id: 1}, {idUser: 'user-456'});
+// Tracks who made the change
+```
+
 ### 🎯 Complex Joins with Type Safety
 
 Filter by joined/aggregated columns that don't exist in your base table:
@@ -341,6 +485,22 @@ describe('User Operations', () => {
 		const result = await users.selectUsers({id: 1}).execute();
 		expect(result).toHaveLength(1);
 	});
+
+	it('handles chained inserts correctly', async () => {
+		const chainedInsert = createChainedInsert()
+			.insert('new_user', usersDb, userData, {returnField: '*'})
+			.insertWithReference('user_post', postsDb, postData, {
+				from: 'new_user',
+				field: 'id',
+				to: 'userId',
+			})
+			.selectFrom('new_user')
+			.build();
+
+		expect(chainedInsert.queries[0].sqlText).toContain('WITH new_user AS');
+		expect(chainedInsert.queries[0].sqlText).toContain('INSERT INTO users');
+		expect(chainedInsert.queries[0].sqlText).toContain('INSERT INTO posts');
+	});
 });
 ```
 
@@ -350,6 +510,7 @@ describe('User Operations', () => {
 - **Parameterized queries**: Built-in SQL injection protection
 - **Efficient execution**: Deferred execution prevents unnecessary queries
 - **TypeScript optimized**: Full type inference and checking
+- **CTE optimization**: Efficient multi-table operations with proper parameter handling
 
 ## Compared to Other Libraries
 
@@ -357,9 +518,11 @@ describe('User Operations', () => {
 | -------------------- | ----------------- | ---------- | ---------- | --------- |
 | **Type Safety**      | ✅ Full           | ✅ Full    | ⚠️ Partial | ❌ None   |
 | **Query Inspection** | ✅ Built-in       | ❌ No      | ❌ No      | ✅ Manual |
+| **Chained Inserts**  | ✅ Type-safe      | ❌ No      | ❌ No      | ⚠️ Manual |
 | **Bundle Size**      | ✅ Small          | ❌ Large   | ❌ Large   | ✅ None   |
 | **Complex Joins**    | ✅ Type-safe      | ⚠️ Limited | ⚠️ Limited | ✅ Manual |
 | **Update Safety**    | ✅ Required WHERE | ⚠️ Manual  | ⚠️ Manual  | ⚠️ Manual |
+| **Audit Fields**     | ✅ Automatic      | ❌ Manual  | ❌ Manual  | ⚠️ Manual |
 | **Learning Curve**   | ✅ Minimal        | ❌ Steep   | ❌ Steep   | ✅ None   |
 | **Flexibility**      | ✅ High           | ⚠️ Medium  | ⚠️ Medium  | ✅ Full   |
 
@@ -380,6 +543,51 @@ interface QueryObject {
 }
 ```
 
+### Chained Insert Builder
+
+```typescript
+// Create a new chained insert builder
+const builder = createChainedInsert();
+
+// Add base insert
+builder.insert(cteName, table, data, options);
+
+// Add insert with reference to previous CTE
+builder.insertWithReference(cteName, table, data, reference, options);
+
+// Add conditional insert
+builder.insertWithReferenceIf(condition, cteName, table, data, reference, options);
+
+// Set final SELECT
+builder.selectFrom(cteName, columns);
+
+// Build and execute
+const result = builder.build();
+const data = await result.execute();
+```
+
+### Enhanced TableBase
+
+```typescript
+class MyTable extends EnhancedTableBase<MySchema> {
+	constructor() {
+		super(tableDefinition);
+
+		// Register related tables
+		this.registerRelatedTable('related_table', {tableDefinition: relatedTableDef});
+	}
+
+	// Use chained inserts with registered tables
+	complexOperation() {
+		return this.createChainedInsert()
+			.insertIntoTable('main', 'main_table', data)
+			.insertIntoTableWithReference('related', 'related_table', relatedData, reference)
+			.selectFrom('main')
+			.build();
+	}
+}
+```
+
 ### Query Operators
 
 ```typescript
@@ -395,6 +603,25 @@ type QueryOperators = {
 	// JSON field access
 	'jsonField.property': any; // JSON -> 'property' = value
 };
+```
+
+### Audit Field Configuration
+
+```typescript
+// Optional lastChangedBy field in schema
+const schema = {
+	// ... other fields
+	lastChangedBy: {
+		type: 'TEXT',
+		notNull: false, // Optional field
+	},
+};
+
+// Automatic addition with default value
+const insertQuery = table.insert(data); // Uses 'SERVER' as default
+
+// Custom audit tracking
+const insertQuery = table.insert(data, {idUser: 'custom-user-id'});
 ```
 
 ## Contributing

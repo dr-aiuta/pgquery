@@ -19,10 +19,10 @@ describe('Security - SQL Injection Prevention', () => {
 		});
 
 		// Test that the query is properly parameterized
-		expect(insertResult.query.sqlText).toMatch(/\$1.*\$2/);
+		expect(insertResult.query.sqlText).toMatch(/\$1.*\$2.*\$3/);
 		expect(insertResult.query.sqlText).not.toContain(maliciousData.name);
 		expect(insertResult.query.sqlText).not.toContain('DROP TABLE');
-		expect(insertResult.query.values).toEqual([maliciousData.name, maliciousData.email]);
+		expect(insertResult.query.values).toEqual([maliciousData.name, maliciousData.email, 'SERVER']);
 
 		const result = await insertResult.execute();
 		expect(result).toEqual(expectedResult);
@@ -108,8 +108,8 @@ describe('Security - SQL Injection Prevention', () => {
 		// Verify both queries are properly parameterized
 		expect(transaction.queries[0].sqlText).not.toContain('DROP TABLE');
 		expect(transaction.queries[1].sqlText).not.toContain('DELETE FROM');
-		expect(transaction.queries[0].values).toEqual([maliciousData1.name, maliciousData1.email]);
-		expect(transaction.queries[1].values).toEqual([maliciousData2.name, maliciousData2.email]);
+		expect(transaction.queries[0].values).toEqual([maliciousData1.name, maliciousData1.email, 'SERVER']);
+		expect(transaction.queries[1].values).toEqual([maliciousData2.name, maliciousData2.email, 'SERVER']);
 
 		// Mock transaction execution
 		(dbpg.query as jest.Mock).mockResolvedValue({rows: []});

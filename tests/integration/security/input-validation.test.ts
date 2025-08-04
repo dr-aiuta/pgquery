@@ -36,9 +36,10 @@ describe('Security - Input Validation', () => {
 		});
 
 		// Validate that string values are properly handled
-		expect(insertResult.query.values).toEqual([validData.name, validData.email]);
+		expect(insertResult.query.values).toEqual([validData.name, validData.email, 'SERVER']);
 		expect(typeof insertResult.query.values[0]).toBe('string');
 		expect(typeof insertResult.query.values[1]).toBe('string');
+		expect(typeof insertResult.query.values[2]).toBe('string');
 
 		const result = await insertResult.execute();
 		expect(result).toEqual(expectedResult);
@@ -73,10 +74,11 @@ describe('Security - Input Validation', () => {
 
 		// Validate query structure before execution
 		expect(insertResult.query.sqlText).toMatch(/INSERT INTO users/);
-		expect(insertResult.query.sqlText).toMatch(/VALUES.*\$1.*\$2/);
-		expect(insertResult.query.values).toHaveLength(2);
+		expect(insertResult.query.sqlText).toMatch(/VALUES.*\$1.*\$2.*\$3/);
+		expect(insertResult.query.values).toHaveLength(3);
 		expect(insertResult.query.values[0]).toBe(userData.name);
 		expect(insertResult.query.values[1]).toBe(userData.email);
+		expect(insertResult.query.values[2]).toBe('test-user-123');
 
 		// Ensure parameterized queries (no direct SQL injection)
 		expect(insertResult.query.sqlText).not.toContain(userData.name);

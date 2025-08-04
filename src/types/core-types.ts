@@ -28,6 +28,7 @@ export type ColumnDefinition<T extends BaseColumnType = any> = {
 	autoIncrement?: boolean;
 	unique?: boolean;
 	notNull?: boolean;
+	default?: any; // Default value for the column
 };
 
 // Helper type to transform the model definition into an instance type
