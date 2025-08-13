@@ -433,7 +433,7 @@ describe('ChainedInsertBuilder - Reusability Tests', () => {
 		it('should throw error when no CTEs are defined', () => {
 			expect(() => {
 				createChainedInsert().build();
-			}).toThrow('No insert steps defined');
+			}).toThrow('No insert or update steps defined');
 		});
 
 		it('should handle database errors gracefully', async () => {

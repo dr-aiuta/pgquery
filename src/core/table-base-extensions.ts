@@ -124,6 +124,149 @@ export class EnhancedChainedInsertBuilder extends ChainedInsertBuilder {
 		super();
 	}
 
+	// Override parent methods to return EnhancedChainedInsertBuilder type
+	/**
+	 * Add a base insert operation (typically the first in the chain)
+	 * Overrides parent to return correct type
+	 */
+	public insert<T extends Record<string, {type: any}>>(
+		cteName: string,
+		table: DatabaseOperations<T>,
+		data: Partial<SchemaToData<T>>,
+		options?: {
+			returnField?: keyof T | '*';
+			onConflict?: boolean;
+			idUser?: string;
+		}
+	): EnhancedChainedInsertBuilder {
+		super.insert(cteName, table, data, options);
+		return this;
+	}
+
+	/**
+	 * Add an insert that references a field from a previous CTE
+	 * Overrides parent to return correct type
+	 */
+	public insertWithReference<T extends Record<string, {type: any}>>(
+		cteName: string,
+		table: DatabaseOperations<T>,
+		data: Partial<SchemaToData<T>>,
+		reference: {from: string; field: string; to: keyof T},
+		options?: {
+			returnField?: keyof T | '*';
+			onConflict?: boolean;
+			idUser?: string;
+		}
+	): EnhancedChainedInsertBuilder {
+		super.insertWithReference(cteName, table, data, reference, options);
+		return this;
+	}
+
+	/**
+	 * Conditionally add an insert with reference
+	 * Overrides parent to return correct type
+	 */
+	public insertWithReferenceIf<T extends Record<string, {type: any}>>(
+		condition: boolean,
+		cteName: string,
+		table: DatabaseOperations<T>,
+		data: Partial<SchemaToData<T>>,
+		reference: {from: string; field: string; to: keyof T},
+		options?: {
+			returnField?: keyof T | '*';
+			onConflict?: boolean;
+			idUser?: string;
+		}
+	): EnhancedChainedInsertBuilder {
+		super.insertWithReferenceIf(condition, cteName, table, data, reference, options);
+		return this;
+	}
+
+	/**
+	 * Set which CTE to select from in the final result
+	 * Overrides parent to return correct type
+	 */
+	public selectFrom(cteName: string, columns: string = '*'): EnhancedChainedInsertBuilder {
+		super.selectFrom(cteName, columns);
+		return this;
+	}
+
+	/**
+	 * Add an update operation to the chain
+	 * Overrides parent to return correct type
+	 */
+	public update<T extends Record<string, {type: any}>>(
+		cteName: string,
+		table: DatabaseOperations<T>,
+		data: Partial<SchemaToData<T>>,
+		where: Partial<SchemaToData<T>>,
+		options?: {
+			returnField?: keyof T | '*';
+			idUser?: string;
+		}
+	): EnhancedChainedInsertBuilder {
+		super.update(cteName, table, data, where, options);
+		return this;
+	}
+
+	/**
+	 * Add an update that references a field from a previous CTE
+	 * Overrides parent to return correct type
+	 */
+	public updateWithReference<T extends Record<string, {type: any}>>(
+		cteName: string,
+		table: DatabaseOperations<T>,
+		data: Partial<SchemaToData<T>>,
+		where: Partial<SchemaToData<T>>,
+		reference: {from: string; field: string; to: keyof T},
+		options?: {
+			returnField?: keyof T | '*';
+			idUser?: string;
+		}
+	): EnhancedChainedInsertBuilder {
+		super.updateWithReference(cteName, table, data, where, reference, options);
+		return this;
+	}
+
+	/**
+	 * Conditionally add an update operation
+	 * Overrides parent to return correct type
+	 */
+	public updateIf<T extends Record<string, {type: any}>>(
+		condition: boolean,
+		cteName: string,
+		table: DatabaseOperations<T>,
+		data: Partial<SchemaToData<T>>,
+		where: Partial<SchemaToData<T>>,
+		options?: {
+			returnField?: keyof T | '*';
+			idUser?: string;
+		}
+	): EnhancedChainedInsertBuilder {
+		super.updateIf(condition, cteName, table, data, where, options);
+		return this;
+	}
+
+	/**
+	 * Conditionally add an update with reference
+	 * Overrides parent to return correct type
+	 */
+	public updateWithReferenceIf<T extends Record<string, {type: any}>>(
+		condition: boolean,
+		cteName: string,
+		table: DatabaseOperations<T>,
+		data: Partial<SchemaToData<T>>,
+		where: Partial<SchemaToData<T>>,
+		reference: {from: string; field: string; to: keyof T},
+		options?: {
+			returnField?: keyof T | '*';
+			idUser?: string;
+		}
+	): EnhancedChainedInsertBuilder {
+		super.updateWithReferenceIf(condition, cteName, table, data, where, reference, options);
+		return this;
+	}
+
 	/**
 	 * Insert using a registered related table name instead of DatabaseOperations instance
 	 */
@@ -178,6 +321,63 @@ export class EnhancedChainedInsertBuilder extends ChainedInsertBuilder {
 	): EnhancedChainedInsertBuilder {
 		if (condition) {
 			return this.insertIntoTableWithReference(cteName, tableName, data, reference, options);
+		}
+		return this;
+	}
+
+	/**
+	 * Update a table using a registered table name
+	 */
+	public updateTable<T extends Record<string, {type: any}>>(
+		cteName: string,
+		tableName: string,
+		data: Partial<SchemaToData<T>>,
+		where: Partial<SchemaToData<T>>,
+		options?: {
+			returnField?: keyof T | '*';
+			idUser?: string;
+		}
+	): EnhancedChainedInsertBuilder {
+		const table = this.registry.get<T>(tableName);
+		super.update(cteName, table, data, where, options);
+		return this;
+	}
+
+	/**
+	 * Update a table with reference to a previous CTE using registered table name
+	 */
+	public updateTableWithReference<T extends Record<string, {type: any}>>(
+		cteName: string,
+		tableName: string,
+		data: Partial<SchemaToData<T>>,
+		where: Partial<SchemaToData<T>>,
+		reference: {from: string; field: string; to: keyof T},
+		options?: {
+			returnField?: keyof T | '*';
+			idUser?: string;
+		}
+	): EnhancedChainedInsertBuilder {
+		const table = this.registry.get<T>(tableName);
+		super.updateWithReference(cteName, table, data, where, reference, options);
+		return this;
+	}
+
+	/**
+	 * Conditionally update a table using registered table name
+	 */
+	public updateTableIf<T extends Record<string, {type: any}>>(
+		condition: boolean,
+		cteName: string,
+		tableName: string,
+		data: Partial<SchemaToData<T>>,
+		where: Partial<SchemaToData<T>>,
+		options?: {
+			returnField?: keyof T | '*';
+			idUser?: string;
+		}
+	): EnhancedChainedInsertBuilder {
+		if (condition) {
+			return this.updateTable(cteName, tableName, data, where, options);
 		}
 		return this;
 	}

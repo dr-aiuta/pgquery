@@ -28,6 +28,7 @@ import {executeTransactionQuery} from './query-executor';
  */
 export class ChainedInsertBuilder {
 	private insertSteps: InsertStep[] = [];
+	private updateSteps: UpdateStep[] = [];
 	private finalSelectStep?: {cteName: string; columns: string};
 
 	/**
@@ -93,11 +94,13 @@ export class ChainedInsertBuilder {
 		this.insertSteps.push({
 			cteName,
 			query: insertQuery.query,
-			reference: reference ? {
-				from: reference.from,
-				field: reference.field,
-				to: reference.to as string
-			} : null,
+			reference: reference
+				? {
+						from: reference.from,
+						field: reference.field,
+						to: reference.to as string,
+				  }
+				: null,
 		});
 
 		return this;
@@ -125,6 +128,124 @@ export class ChainedInsertBuilder {
 	}
 
 	/**
+	 * Add an update operation to the chain
+	 */
+	public update<T extends Record<string, {type: any}>>(
+		cteName: string,
+		table: DatabaseOperations<T>,
+		data: Partial<SchemaToData<T>>,
+		where: Partial<SchemaToData<T>>,
+		options?: {
+			returnField?: keyof T | '*';
+			idUser?: string;
+		}
+	): ChainedInsertBuilder {
+		const updateQuery = table.update({
+			allowedColumns: '*',
+			options: {
+				data,
+				where,
+				returnField: options?.returnField || '*',
+				idUser: options?.idUser || 'SERVER',
+			},
+		});
+
+		this.updateSteps.push({
+			cteName,
+			query: updateQuery.query,
+			reference: null,
+		});
+
+		return this;
+	}
+
+	/**
+	 * Add an update that references a field from a previous CTE
+	 */
+	public updateWithReference<T extends Record<string, {type: any}>>(
+		cteName: string,
+		table: DatabaseOperations<T>,
+		data: Partial<SchemaToData<T>>,
+		where: Partial<SchemaToData<T>>,
+		reference: {from: string; field: string; to: keyof T},
+		options?: {
+			returnField?: keyof T | '*';
+			idUser?: string;
+		}
+	): ChainedInsertBuilder {
+		// Create the update query with the referenced field
+		const dataWithRef = {
+			...data,
+			// The reference will be injected later
+		};
+
+		const updateQuery = table.update({
+			allowedColumns: '*',
+			options: {
+				data: dataWithRef,
+				where,
+				returnField: options?.returnField || '*',
+				idUser: options?.idUser || 'SERVER',
+			},
+		});
+
+		this.updateSteps.push({
+			cteName,
+			query: updateQuery.query,
+			reference: reference
+				? {
+						from: reference.from,
+						field: reference.field,
+						to: reference.to as string,
+				  }
+				: null,
+		});
+
+		return this;
+	}
+
+	/**
+	 * Conditionally add an update operation
+	 */
+	public updateIf<T extends Record<string, {type: any}>>(
+		condition: boolean,
+		cteName: string,
+		table: DatabaseOperations<T>,
+		data: Partial<SchemaToData<T>>,
+		where: Partial<SchemaToData<T>>,
+		options?: {
+			returnField?: keyof T | '*';
+			idUser?: string;
+		}
+	): ChainedInsertBuilder {
+		if (condition) {
+			return this.update(cteName, table, data, where, options);
+		}
+		return this;
+	}
+
+	/**
+	 * Conditionally add an update with reference
+	 */
+	public updateWithReferenceIf<T extends Record<string, {type: any}>>(
+		condition: boolean,
+		cteName: string,
+		table: DatabaseOperations<T>,
+		data: Partial<SchemaToData<T>>,
+		where: Partial<SchemaToData<T>>,
+		reference: {from: string; field: string; to: keyof T},
+		options?: {
+			returnField?: keyof T | '*';
+			idUser?: string;
+		}
+	): ChainedInsertBuilder {
+		if (condition) {
+			return this.updateWithReference(cteName, table, data, where, reference, options);
+		}
+		return this;
+	}
+
+	/**
 	 * Set which CTE to select from in the final result
 	 */
 	public selectFrom(cteName: string, columns: string = '*'): ChainedInsertBuilder {
@@ -139,8 +260,8 @@ export class ChainedInsertBuilder {
 		queries: QueryObject[];
 		execute: () => Promise<QueryArrayResult<any>[]>;
 	} {
-		if (this.insertSteps.length === 0) {
-			throw new Error('No insert steps defined');
+		if (this.insertSteps.length === 0 && this.updateSteps.length === 0) {
+			throw new Error('No insert or update steps defined');
 		}
 
 		const combinedQuery = this.buildCTEQuery();
@@ -169,11 +290,20 @@ export class ChainedInsertBuilder {
 			parameterOffset += processedStep.values.length;
 		}
 
+		// Process each update step
+		for (const step of this.updateSteps) {
+			const processedStep = this.processUpdateStep(step, parameterOffset);
+			cteDefinitions.push(`${step.cteName} AS (\n  ${processedStep.sql}\n)`);
+			allValues.push(...processedStep.values);
+			parameterOffset += processedStep.values.length;
+		}
+
 		// Build the final SQL
 		let sql = `WITH ${cteDefinitions.join(',\n')}`;
 
 		// Add final SELECT
-		const selectStep = this.finalSelectStep || {cteName: this.insertSteps[0].cteName, columns: '*'};
+		const defaultCteName = this.insertSteps.length > 0 ? this.insertSteps[0].cteName : this.updateSteps[0].cteName;
+		const selectStep = this.finalSelectStep || {cteName: defaultCteName, columns: '*'};
 		sql += `\nSELECT ${selectStep.columns} FROM ${selectStep.cteName};`;
 
 		return {
@@ -207,6 +337,64 @@ export class ChainedInsertBuilder {
 		}
 
 		return {sql: sqlText, values};
+	}
+
+	/**
+	 * Process a single update step, handling parameter offsets and references
+	 */
+	private processUpdateStep(step: UpdateStep, offset: number): {sql: string; values: any[]} {
+		let {sqlText, values} = step.query;
+
+		// Remove trailing semicolon
+		sqlText = sqlText.trim().replace(/;$/, '');
+
+		// Adjust parameter numbers for offset
+		if (offset > 0) {
+			sqlText = sqlText.replace(/\$(\d+)/g, (match, num) => {
+				const newNum = parseInt(num, 10) + offset;
+				return `$${newNum}`;
+			});
+		}
+
+		// Handle reference injection for updates
+		if (step.reference) {
+			const {modifiedSQL, newValues} = this.injectUpdateReference(sqlText, values, step.reference);
+			sqlText = modifiedSQL;
+			values = newValues;
+		}
+
+		return {sql: sqlText, values};
+	}
+
+	/**
+	 * Inject a CTE reference into the UPDATE statement
+	 */
+	private injectUpdateReference(
+		sql: string,
+		values: any[],
+		reference: {from: string; field: string; to: string}
+	): {modifiedSQL: string; newValues: any[]} {
+		// Parse the UPDATE statement to add the referenced field
+		const updateMatch = sql.match(/UPDATE\s+(\w+)\s+SET\s+(.+?)\s+WHERE/i);
+
+		if (!updateMatch) {
+			throw new Error('Unable to parse UPDATE statement for reference injection');
+		}
+
+		const [fullMatch, tableName, setPart] = updateMatch;
+
+		// Add the referenced column to the SET clause
+		const cteReference = `(SELECT "${reference.field}" FROM ${reference.from})`;
+		const newSetPart = `${setPart}, "${reference.to}" = ${cteReference}`;
+
+		// Reconstruct the UPDATE with WHERE and RETURNING clauses
+		const remainingSQL = sql.substring(fullMatch.length);
+		const modifiedSQL = `UPDATE ${tableName} SET ${newSetPart} WHERE${remainingSQL}`;
+
+		return {
+			modifiedSQL,
+			newValues: values, // Values array stays the same since we're using a subquery
+		};
 	}
 
 	/**
@@ -250,6 +438,15 @@ export class ChainedInsertBuilder {
  * Represents a single insert step in the chain
  */
 interface InsertStep {
+	cteName: string;
+	query: QueryObject;
+	reference: {from: string; field: string; to: string} | null;
+}
+
+/**
+ * Represents a single update step in the chain
+ */
+interface UpdateStep {
 	cteName: string;
 	query: QueryObject;
 	reference: {from: string; field: string; to: string} | null;

@@ -9,7 +9,7 @@ A modern, type-safe PostgreSQL query builder for Node.js with TypeScript support
 - **Query Inspection**: See generated SQL and parameters before execution
 - **Type Safety**: Full TypeScript support with auto-completion
 - **Zero Learning Curve**: Intuitive API that mirrors your mental model
-- **Chained Inserts**: Fluent CTE-based multi-table operations
+- **Chained Operations**: Fluent CTE-based multi-table inserts and updates
 - **Related Tables Registry**: Simplified management of table relationships
 
 **🚀 Superior Architecture**
@@ -24,7 +24,7 @@ A modern, type-safe PostgreSQL query builder for Node.js with TypeScript support
 - **Smart Operators**: Built-in support for `LIKE`, `IN`, date ranges, JSON queries
 - **Complex Joins**: Filter by joined/aggregated columns with full type safety
 - **Transaction Builder**: Fluent interface for multi-query transactions
-- **Chained Insert Builder**: Type-safe CTE operations for complex multi-table inserts
+- **Chained Insert/Update Builder**: Type-safe CTE operations for complex multi-table operations
 - **Optional Audit Fields**: Automatic `lastChangedBy` tracking with configurable defaults
 - **Minimal Dependencies**: Only 4 core dependencies
 
@@ -200,9 +200,9 @@ console.log(query.query.values); // ["John"]
 const results = await query.execute();
 ```
 
-### 🔗 Chained Insert Builder
+### 🔗 Chained Insert & Update Builder
 
-Build complex multi-table operations with automatic CTE handling:
+Build complex multi-table operations with automatic CTE handling, now with full support for updates:
 
 ```typescript
 import {createChainedInsert} from 'pg-lightquery';
@@ -229,8 +229,84 @@ const result = createChainedInsert()
 	.selectFrom('new_user')
 	.build();
 
+// UPDATE operations in transactions
+const updateResult = createChainedInsert()
+	.update('updated_user', usersDb, {name: 'Updated Name'}, {id: userId}, {returnField: '*'})
+	.update('updated_post', postsDb, {title: 'Updated Title'}, {id: postId}, {returnField: '*'})
+	.selectFrom('updated_user')
+	.build();
+
+// Mixed INSERT and UPDATE operations
+const mixedResult = createChainedInsert()
+	.insert('new_user', usersDb, newUserData, {returnField: '*'})
+	.updateWithReference(
+		'updated_post',
+		postsDb,
+		{content: 'Post updated by new user'},
+		{id: existingPostId},
+		{from: 'new_user', field: 'id', to: 'userId'},
+		{returnField: '*'}
+	)
+	.selectFrom('new_user')
+	.build();
+
 // Execute the chained operation
-const newUser = await result.execute();
+const result = await mixedResult.execute();
+```
+
+#### 🔄 Advanced Update Scenarios
+
+```typescript
+// Update multiple related tables in a transaction
+const result = createChainedInsert()
+	.update('charge_update', chargesDb, {status: 'COMPLETED', amount: 1500}, {idCharge: chargeId}, {returnField: '*'})
+	.updateTable('deal_update', 'dealsTable', {status: 'COMPLETED'}, {idDeal: dealId}, {returnField: '*'})
+	.updateTable(
+		'expense_update',
+		'otherExpensesTable',
+		{status: 'COMPLETED'},
+		{idExpense: expenseId},
+		{returnField: '*'}
+	)
+	.selectFrom('charge_update')
+	.build();
+
+// Conditional updates based on business logic
+const shouldUpdateDeal = dealStatus === 'PENDING';
+const shouldUpdateExpense = expenseAmount > 0;
+
+const conditionalResult = createChainedInsert()
+	.insert('new_charge', chargesDb, chargeData, {returnField: '*'})
+	.updateIf(shouldUpdateDeal, 'deal_update', dealsDb, {status: 'ACTIVE'}, {idDeal: dealId})
+	.updateIf(shouldUpdateExpense, 'expense_update', expensesDb, {amount: newAmount}, {idExpense: expenseId})
+	.selectFrom('new_charge')
+	.build();
+
+// Update with references from previous operations
+const referenceResult = createChainedInsert()
+	.insert('new_entity', entitiesDb, entityData, {returnField: '*'})
+	.updateWithReference(
+		'linked_record',
+		recordsDb,
+		{lastModifiedBy: 'system'},
+		{id: recordId},
+		{from: 'new_entity', field: 'id', to: 'entityId'},
+		{returnField: '*'}
+	)
+	.selectFrom('new_entity')
+	.build();
+
+// Generated SQL for mixed operations:
+// WITH new_entity AS (
+//   INSERT INTO entities (...) VALUES (...) RETURNING *
+// ),
+// linked_record AS (
+//   UPDATE records
+//   SET "lastModifiedBy" = $1, "entityId" = (SELECT "id" FROM new_entity)
+//   WHERE "id" = $2
+//   RETURNING *
+// )
+// SELECT * FROM new_entity;
 ```
 
 ### 🏗️ Enhanced TableBase
@@ -272,6 +348,22 @@ class PlacesTable extends EnhancedTableBase<PlacesSchema> {
 				}
 			)
 			.selectFrom('place')
+			.build();
+	}
+
+	// Update operations with registered tables
+	updatePlaceAndContacts(placeId: number, placeData: Partial<PlacesData>, contactData?: any) {
+		return this.createChainedInsert()
+			.update('updated_place', this.db, placeData, {idPlace: placeId}, {returnField: '*'})
+			.updateTableIf(
+				!!contactData,
+				'updated_contact',
+				'places_contacts',
+				contactData || {},
+				{idPlace: placeId},
+				{returnField: '*'}
+			)
+			.selectFrom('updated_place')
 			.build();
 	}
 }
@@ -543,20 +635,22 @@ interface QueryObject {
 }
 ```
 
-### Chained Insert Builder
+### Chained Insert & Update Builder
 
 ```typescript
 // Create a new chained insert builder
 const builder = createChainedInsert();
 
-// Add base insert
+// INSERT operations
 builder.insert(cteName, table, data, options);
-
-// Add insert with reference to previous CTE
 builder.insertWithReference(cteName, table, data, reference, options);
-
-// Add conditional insert
 builder.insertWithReferenceIf(condition, cteName, table, data, reference, options);
+
+// UPDATE operations
+builder.update(cteName, table, data, where, options);
+builder.updateWithReference(cteName, table, data, where, reference, options);
+builder.updateIf(condition, cteName, table, data, where, options);
+builder.updateWithReferenceIf(condition, cteName, table, data, where, reference, options);
 
 // Set final SELECT
 builder.selectFrom(cteName, columns);
@@ -578,11 +672,21 @@ class MyTable extends EnhancedTableBase<MySchema> {
 	}
 
 	// Use chained inserts with registered tables
-	complexOperation() {
+	complexInsertOperation() {
 		return this.createChainedInsert()
 			.insertIntoTable('main', 'main_table', data)
 			.insertIntoTableWithReference('related', 'related_table', relatedData, reference)
 			.selectFrom('main')
+			.build();
+	}
+
+	// Use chained updates with registered tables
+	complexUpdateOperation() {
+		return this.createChainedInsert()
+			.updateTable('main_update', 'main_table', data, where)
+			.updateTableWithReference('related_update', 'related_table', relatedData, where, reference)
+			.updateTableIf(condition, 'conditional_update', 'other_table', data, where)
+			.selectFrom('main_update')
 			.build();
 	}
 }
