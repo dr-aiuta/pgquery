@@ -1,6 +1,7 @@
 // Main exports for pg-lightquery
 // ✅ COMPOSITION-BASED API (RECOMMENDED)
 export {TableBase} from './core/table-base';
+export {EnhancedTableBase} from './core/table-base-extensions';
 
 // Note: DatabaseOperations is intentionally not exported
 // It's an internal implementation detail for composition
