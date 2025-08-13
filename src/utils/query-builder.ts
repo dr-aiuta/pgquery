@@ -57,10 +57,26 @@ export function buildInsertSqlQuery<T extends Record<string, ColumnDefinition>>(
 	onConflict: boolean,
 	primaryKeyColumns: UniqueArray<(keyof T)[]>,
 	conflictUpdateAssignments: string[],
-	returnField?: keyof T | '*'
+	returnField?: keyof T | (keyof T)[] | '*'
 ): {sqlText: string; values: any[]} {
 	// Interpolating the values as $1, $2, $3, etc.
 	const placeholders = valuesForInsert.map((_, index) => `$${index + 1}`).join(', ');
+
+	// Format the RETURNING clause based on the type of returnField
+	let returningClause = '';
+	if (returnField) {
+		if (String(returnField) === '*') {
+			returningClause = 'RETURNING *';
+		} else if (Array.isArray(returnField)) {
+			// Handle array of fields - only add RETURNING if array is not empty
+			if (returnField.length > 0) {
+				returningClause = `RETURNING ${returnField.map((field) => `"${String(field)}"`).join(', ')}`;
+			}
+		} else {
+			// Handle single field
+			returningClause = `RETURNING "${String(returnField)}"`;
+		}
+	}
 
 	// Building the SQL text
 	const sqlText = `
@@ -70,7 +86,7 @@ VALUES (${placeholders})${
 			? ` ON CONFLICT ("${primaryKeyColumns.join(', ')}") DO UPDATE SET ${conflictUpdateAssignments.join(', ')}`
 			: ''
 	}
-${returnField ? `RETURNING ${String(returnField) === '*' ? '*' : `"${String(returnField)}"`}` : ''};
+${returningClause ? returningClause : ''};
 	`;
 
 	return {
@@ -97,7 +113,7 @@ export function buildUpdateSqlQuery<T extends Record<string, ColumnDefinition>>(
 	valuesForUpdate: any[],
 	whereClause: string,
 	whereValues: any[],
-	returnField?: keyof T | '*'
+	returnField?: keyof T | (keyof T)[] | '*'
 ): {sqlText: string; values: any[]} {
 	// Create SET assignments like "column" = $1, "column2" = $2
 	const setAssignments = columnsForUpdate.map((column, index) => `"${String(column)}" = $${index + 1}`).join(', ');
@@ -108,14 +124,30 @@ export function buildUpdateSqlQuery<T extends Record<string, ColumnDefinition>>(
 		return `$${newNum}`;
 	});
 
+	// Format the RETURNING clause based on the type of returnField
+	let returningClause = '';
+	if (returnField) {
+		if (String(returnField) === '*') {
+			returningClause = 'RETURNING *';
+		} else if (Array.isArray(returnField)) {
+			// Handle array of fields - only add RETURNING if array is not empty
+			if (returnField.length > 0) {
+				returningClause = `RETURNING ${returnField.map((field) => `"${String(field)}"`).join(', ')}`;
+			}
+		} else {
+			// Handle single field
+			returningClause = `RETURNING "${String(returnField)}"`;
+		}
+	}
+
 	// Building the SQL text
 	const sqlText = `
 UPDATE ${tableName}
 SET ${setAssignments}
 ${adjustedWhereClause}${
-		returnField
+		returningClause
 			? `
-RETURNING ${String(returnField) === '*' ? '*' : `"${String(returnField)}"`}`
+${returningClause}`
 			: ''
 	};
 	`.trim();

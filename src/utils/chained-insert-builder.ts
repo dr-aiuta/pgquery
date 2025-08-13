@@ -39,7 +39,7 @@ export class ChainedInsertBuilder {
 		table: DatabaseOperations<T>,
 		data: Partial<SchemaToData<T>>,
 		options?: {
-			returnField?: keyof T | '*';
+			returnField?: keyof T | (keyof T)[] | '*';
 			onConflict?: boolean;
 			idUser?: string;
 		}
@@ -72,7 +72,7 @@ export class ChainedInsertBuilder {
 		data: Partial<SchemaToData<T>>,
 		reference: {from: string; field: string; to: keyof T},
 		options?: {
-			returnField?: keyof T | '*';
+			returnField?: keyof T | (keyof T)[] | '*';
 			onConflict?: boolean;
 			idUser?: string;
 		}
@@ -116,7 +116,7 @@ export class ChainedInsertBuilder {
 		data: Partial<SchemaToData<T>>,
 		reference: {from: string; field: string; to: keyof T},
 		options?: {
-			returnField?: keyof T | '*';
+			returnField?: keyof T | (keyof T)[] | '*';
 			onConflict?: boolean;
 			idUser?: string;
 		}
@@ -136,7 +136,7 @@ export class ChainedInsertBuilder {
 		data: Partial<SchemaToData<T>>,
 		where: Partial<SchemaToData<T>>,
 		options?: {
-			returnField?: keyof T | '*';
+			returnField?: keyof T | (keyof T)[] | '*';
 			idUser?: string;
 		}
 	): ChainedInsertBuilder {
@@ -169,7 +169,7 @@ export class ChainedInsertBuilder {
 		where: Partial<SchemaToData<T>>,
 		reference: {from: string; field: string; to: keyof T},
 		options?: {
-			returnField?: keyof T | '*';
+			returnField?: keyof T | (keyof T)[] | '*';
 			idUser?: string;
 		}
 	): ChainedInsertBuilder {
@@ -214,7 +214,7 @@ export class ChainedInsertBuilder {
 		data: Partial<SchemaToData<T>>,
 		where: Partial<SchemaToData<T>>,
 		options?: {
-			returnField?: keyof T | '*';
+			returnField?: keyof T | (keyof T)[] | '*';
 			idUser?: string;
 		}
 	): ChainedInsertBuilder {
@@ -235,7 +235,7 @@ export class ChainedInsertBuilder {
 		where: Partial<SchemaToData<T>>,
 		reference: {from: string; field: string; to: keyof T},
 		options?: {
-			returnField?: keyof T | '*';
+			returnField?: keyof T | (keyof T)[] | '*';
 			idUser?: string;
 		}
 	): ChainedInsertBuilder {
