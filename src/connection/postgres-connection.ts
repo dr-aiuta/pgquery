@@ -24,15 +24,17 @@ class PostgresConnection {
 	}
 
 	async query(text: any, queryParams?: any[]): Promise<QueryResult<any>> {
-		const client = await this.pool.connect();
 		const start = Date.now();
+		const client = await this.pool.connect();
+		let duration = 0;
 
 		try {
 			const result = await client.query(text, queryParams);
-			const duration = Date.now() - start;
+			duration = Date.now() - start;
 			console.log('Executed Query', {text: result.command, duration, rows: result.rowCount});
 			return result;
 		} catch (e: unknown) {
+			duration = Date.now() - start;
 			if (e instanceof Error) {
 				loggerMock.log({forceLog: true, message: ['databases.postgres.queries.query', 'Error: %s', e.message]});
 				loggerMock.log({forceLog: false, message: ['databases.postgres.queries.query', 'Error: %s', e.stack]});
@@ -42,6 +44,9 @@ class PostgresConnection {
 				throw new Error('Unknown error during query execution');
 			}
 		} finally {
+			if (duration >= 2000) {
+				console.warn(`[SLOW ${duration}ms] ${text} :: ${JSON.stringify(queryParams)}`);
+			}
 			client.release();
 		}
 	}
@@ -49,16 +54,18 @@ class PostgresConnection {
 	async transaction(text: any, queryParams: any) {
 		const client = await this.pool.connect();
 		const start = Date.now();
+		let duration = 0;
 
 		try {
 			await client.query('BEGIN');
 			const result = await client.query(text, queryParams);
 			await client.query('COMMIT');
-			const duration = Date.now() - start;
+			duration = Date.now() - start;
 			console.log('Executed Transaction', {text: result.command, duration, rows: result.rowCount});
 			return result;
 		} catch (e) {
 			await client.query('ROLLBACK');
+			duration = Date.now() - start;
 			if (e instanceof Error) {
 				loggerMock.log({forceLog: true, message: ['databases.postgres.queries.query', 'error: %s', e.message]});
 				loggerMock.log({forceLog: false, message: ['databases.postgres.queries.query', 'error: %s', e.stack]});
@@ -69,6 +76,9 @@ class PostgresConnection {
 				throw new Error('Unknown error during transaction');
 			}
 		} finally {
+			if (duration >= 2000) {
+				console.warn(`[SLOW ${duration}ms] ${text} :: ${JSON.stringify(queryParams)}`);
+			}
 			client.release();
 		}
 	}
