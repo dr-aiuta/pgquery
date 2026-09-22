@@ -1,0 +1,50 @@
+name: Publish to npm
+
+# Publishes the package whenever a version tag (v1.2.3) is pushed.
+# Authentication uses npm Trusted Publishing (OIDC): no token or 2FA code is needed.
+# One-time setup on npmjs.com: package Settings > Trusted Publisher > GitHub Actions,
+# with repository dr-aiuta/pgquery and workflow filename publish.yml.
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Existing tag to publish (for example v0.4.6)'
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  id-token: write # required for npm Trusted Publishing and provenance
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          registry-url: https://registry.npmjs.org
+
+      # Trusted Publishing needs npm 11.5.1 or newer.
+      - run: npm install -g npm@latest
+
+      - name: Check tag matches package.json version
+        run: |
+          TAG="${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}"
+          PKG="v$(node -p "require('./package.json').version")"
+          if [ "$TAG" != "$PKG" ]; then
+            echo "Tag $TAG does not match package.json version $PKG"
+            exit 1
+          fi
+
+      - run: npm ci
+      - run: npm test
+
+      - run: npm publish --provenance --access public
