@@ -37,6 +37,9 @@ export type ColumnReference = {
 	onUpdate?: ForeignKeyAction;
 };
 
+// An SQL expression used as a column default, e.g. {sql: 'now()'}
+export type SqlExpression = {sql: string};
+
 // Model definition structure
 export type ColumnDefinition<T extends BaseColumnType = any> = {
 	type: T;
@@ -45,10 +48,11 @@ export type ColumnDefinition<T extends BaseColumnType = any> = {
 	precision?: number; // For NUMERIC
 	scale?: number; // For NUMERIC
 	enum?: Enumerator | readonly Enumerator[];
+	enumTypeName?: string; // PostgreSQL enum type for ENUM columns, may be schema-qualified. Defaults to '<table>_<column>'
 	autoIncrement?: boolean;
 	unique?: boolean;
 	notNull?: boolean;
-	default?: any; // Default value for the column
+	default?: any; // Default value. Use {sql: '...'} for an SQL expression; strings like 'NOW()' are also treated as expressions
 	references?: ColumnReference; // Foreign key
 };
 

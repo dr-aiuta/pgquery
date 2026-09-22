@@ -48,7 +48,7 @@ export interface SchemaDriftOptions {
 }
 
 // information_schema.columns.data_type for each supported column type
-const SQL_DATA_TYPES: Record<BaseColumnType, string> = {
+export const SQL_DATA_TYPES: Record<BaseColumnType, string> = {
 	VARCHAR: 'character varying',
 	TEXT: 'text',
 	UUID: 'uuid',
@@ -68,7 +68,7 @@ const SQL_DATA_TYPES: Record<BaseColumnType, string> = {
 };
 
 // pg_constraint.confdeltype / confupdtype codes
-const FK_ACTIONS: Record<string, ForeignKeyAction> = {
+export const FK_ACTIONS: Record<string, ForeignKeyAction> = {
 	a: 'NO ACTION',
 	r: 'RESTRICT',
 	c: 'CASCADE',
@@ -85,9 +85,12 @@ JOIN ${TABLES_PARAM} ON c.table_schema = target.schema_name AND c.table_name = t
 ORDER BY c.table_schema, c.table_name, c.ordinal_position`;
 
 // Primary key columns, and columns that carry a single-column unique index of their own
-const KEYS_SQL = `SELECT n.nspname AS table_schema, t.relname AS table_name, a.attname AS column_name, i.indisprimary AS is_primary
+const KEYS_SQL = `SELECT n.nspname AS table_schema, t.relname AS table_name, a.attname AS column_name, i.indisprimary AS is_primary,
+	ic.relname AS index_name, con.conname AS constraint_name
 FROM pg_index i
 JOIN pg_class t ON t.oid = i.indrelid
+JOIN pg_class ic ON ic.oid = i.indexrelid
+LEFT JOIN pg_constraint con ON con.conindid = i.indexrelid AND con.conrelid = i.indrelid AND con.contype IN ('p', 'u')
 JOIN pg_namespace n ON n.oid = t.relnamespace
 JOIN ${TABLES_PARAM} ON n.nspname = target.schema_name AND t.relname = target.table_name
 CROSS JOIN LATERAL unnest(i.indkey) WITH ORDINALITY AS k(attnum, ord)
@@ -97,7 +100,8 @@ WHERE k.ord <= i.indnkeyatts
 
 // Single-column foreign keys
 const FOREIGN_KEYS_SQL = `SELECT n.nspname AS table_schema, t.relname AS table_name, a.attname AS column_name,
-	rn.nspname AS ref_schema, rt.relname AS ref_table, ra.attname AS ref_column, c.confdeltype, c.confupdtype
+	rn.nspname AS ref_schema, rt.relname AS ref_table, ra.attname AS ref_column, c.confdeltype, c.confupdtype,
+	c.conname AS constraint_name
 FROM pg_constraint c
 JOIN pg_class t ON t.oid = c.conrelid
 JOIN pg_namespace n ON n.oid = t.relnamespace
@@ -115,7 +119,7 @@ JOIN pg_namespace n ON n.oid = t.typnamespace
 WHERE t.typname = ANY($1::text[])
 ORDER BY n.nspname, t.typname, e.enumsortorder`;
 
-interface QualifiedName {
+export interface QualifiedName {
 	schema: string;
 	table: string;
 }
@@ -138,7 +142,7 @@ export function parseTableName(name: string, defaultSchema = 'public'): Qualifie
 	};
 }
 
-const key = (...parts: string[]) => parts.join('\u0000');
+export const key = (...parts: string[]) => parts.join('\u0000');
 
 function groupBy<R>(rows: R[], keyOf: (row: R) => string): Map<string, R[]> {
 	const map = new Map<string, R[]>();
@@ -179,19 +183,44 @@ function expectedType(def: ColumnDefinition): string {
 	return dataType;
 }
 
-/**
- * Compares table definitions with the database and returns every difference found.
- * Only reads the system catalog. Composite unique constraints and composite foreign keys are not compared.
- */
-export async function checkSchemaDrift(
-	tables: TableDefinition<any>[],
-	options: SchemaDriftOptions = {}
-): Promise<SchemaDriftReport> {
-	const defaultSchema = options.defaultSchema ?? 'public';
-	const query: SchemaDriftQueryFn =
-		options.query ?? ((text, values) => PostgresConnection.getInstance().query(text, values));
+export interface ResolvedTable {
+	name: QualifiedName;
+	columns: Record<string, ColumnDefinition>;
+}
 
-	const targets = tables.map((table) => ({definition: table, name: parseTableName(table.tableName, defaultSchema)}));
+/** Catalog rows for the checked tables, grouped for lookup. Internal to the schema tools. */
+export interface SchemaCatalog {
+	columnsByTable: Map<string, any[]>;
+	keysByColumn: Map<string, any[]>;
+	foreignKeysByColumn: Map<string, any[]>;
+	/** Enum labels in sort order, keyed by key(schema, typeName) */
+	enumLabels: Map<string, string[]>;
+}
+
+export function resolveTables(tables: TableDefinition<any>[], defaultSchema: string): ResolvedTable[] {
+	return tables.map((table) => ({
+		name: parseTableName(table.tableName, defaultSchema),
+		columns: table.schema.columns as Record<string, ColumnDefinition>,
+	}));
+}
+
+export function enumValues(def: ColumnDefinition): string[] {
+	if (def.enum === undefined) return [];
+	return (Array.isArray(def.enum) ? def.enum : [def.enum]).map(String);
+}
+
+/** Enum type used for an ENUM column: `enumTypeName` when set, otherwise `<table>_<column>` in the table's schema. */
+export function enumTypeFor(table: QualifiedName, column: string, def: ColumnDefinition): QualifiedName {
+	return def.enumTypeName
+		? parseTableName(def.enumTypeName, table.schema)
+		: {schema: table.schema, table: `${table.table}_${column}`.toLowerCase()};
+}
+
+export function queryFnFrom(options: SchemaDriftOptions): SchemaDriftQueryFn {
+	return options.query ?? ((text, values) => PostgresConnection.getInstance().query(text, values));
+}
+
+export async function readCatalog(targets: ResolvedTable[], query: SchemaDriftQueryFn): Promise<SchemaCatalog> {
 	const params = [targets.map((t) => t.name.schema), targets.map((t) => t.name.table)];
 
 	const [columnsResult, keysResult, foreignKeysResult] = await Promise.all([
@@ -200,19 +229,40 @@ export async function checkSchemaDrift(
 		query(FOREIGN_KEYS_SQL, params),
 	]);
 
-	const enumTypeNames = [
-		...new Set(columnsResult.rows.filter((r) => r.data_type === 'USER-DEFINED').map((r) => r.udt_name as string)),
-	];
-	const enumRows = enumTypeNames.length > 0 ? (await query(ENUM_LABELS_SQL, [enumTypeNames])).rows : [];
+	// Enum types used by existing columns, plus the ones the definitions expect (so new ones can be detected)
+	const enumTypeNames = new Set<string>(
+		columnsResult.rows.filter((r) => r.data_type === 'USER-DEFINED').map((r) => r.udt_name as string)
+	);
+	for (const {name, columns} of targets) {
+		for (const [column, def] of Object.entries(columns)) {
+			if (def.type === 'ENUM') enumTypeNames.add(enumTypeFor(name, column, def).table);
+		}
+	}
+	const enumRows = enumTypeNames.size > 0 ? (await query(ENUM_LABELS_SQL, [[...enumTypeNames]])).rows : [];
 
-	const columnsByTable = groupBy(columnsResult.rows, (r) => key(r.table_schema, r.table_name));
-	const keysByColumn = groupBy(keysResult.rows, (r) => key(r.table_schema, r.table_name, r.column_name));
-	const foreignKeysByColumn = groupBy(foreignKeysResult.rows, (r) => key(r.table_schema, r.table_name, r.column_name));
-	const enumLabels = groupBy(enumRows, (r) => key(r.udt_schema, r.udt_name));
+	const enumLabels = new Map<string, string[]>();
+	for (const row of enumRows) {
+		const k = key(row.udt_schema, row.udt_name);
+		enumLabels.set(k, [...(enumLabels.get(k) ?? []), row.enumlabel]);
+	}
 
+	return {
+		columnsByTable: groupBy(columnsResult.rows, (r) => key(r.table_schema, r.table_name)),
+		keysByColumn: groupBy(keysResult.rows, (r) => key(r.table_schema, r.table_name, r.column_name)),
+		foreignKeysByColumn: groupBy(foreignKeysResult.rows, (r) => key(r.table_schema, r.table_name, r.column_name)),
+		enumLabels,
+	};
+}
+
+export function compareWithCatalog(
+	targets: ResolvedTable[],
+	catalog: SchemaCatalog,
+	defaultSchema: string,
+	ignoreExtraColumns: boolean
+): SchemaDriftIssue[] {
 	const issues: SchemaDriftIssue[] = [];
 
-	for (const {definition, name} of targets) {
+	for (const {name, columns: definedColumns} of targets) {
 		const tableLabel = `${name.schema}.${name.table}`;
 		const report = (
 			kind: SchemaDriftKind,
@@ -230,14 +280,13 @@ export async function checkSchemaDrift(
 				message: `${column ? `${tableLabel}.${column}` : tableLabel}: ${detail} (expected ${expected}, found ${actual})`,
 			});
 
-		const dbColumns = columnsByTable.get(key(name.schema, name.table));
+		const dbColumns = catalog.columnsByTable.get(key(name.schema, name.table));
 		if (!dbColumns) {
 			report('missing_table', undefined, 'table', 'nothing', 'table does not exist');
 			continue;
 		}
 
 		const dbColumnsByName = new Map(dbColumns.map((c) => [c.column_name as string, c]));
-		const definedColumns = definition.schema.columns as Record<string, ColumnDefinition>;
 
 		for (const [columnName, def] of Object.entries(definedColumns)) {
 			const col = dbColumnsByName.get(columnName);
@@ -247,7 +296,7 @@ export async function checkSchemaDrift(
 			}
 
 			const columnKey = key(name.schema, name.table, columnName);
-			const keys = keysByColumn.get(columnKey) ?? [];
+			const keys = catalog.keysByColumn.get(columnKey) ?? [];
 			const isPrimary = keys.some((k) => k.is_primary);
 			const hasUniqueIndex = keys.some((k) => !k.is_primary);
 			const isAutoIncrement = col.is_identity === 'YES' || /^nextval\(/i.test(col.column_default ?? '');
@@ -262,12 +311,20 @@ export async function checkSchemaDrift(
 				col.numeric_scale
 			);
 			if (def.type === 'ENUM' && col.data_type === 'USER-DEFINED') {
-				const labels = enumLabels.get(key(col.udt_schema, col.udt_name));
-				if (!labels) {
+				const inDb = catalog.enumLabels.get(key(col.udt_schema, col.udt_name));
+				const namedType = def.enumTypeName ? parseTableName(def.enumTypeName, name.schema) : undefined;
+				if (!inDb) {
 					report('type_mismatch', columnName, 'enum type', col.udt_name, 'type differs');
+				} else if (namedType && (namedType.schema !== col.udt_schema || namedType.table !== col.udt_name)) {
+					report(
+						'type_mismatch',
+						columnName,
+						`${namedType.schema}.${namedType.table}`,
+						`${col.udt_schema}.${col.udt_name}`,
+						'enum type differs'
+					);
 				} else if (def.enum !== undefined) {
-					const defined = (Array.isArray(def.enum) ? def.enum : [def.enum]).map(String);
-					const inDb = labels.map((l) => l.enumlabel as string);
+					const defined = enumValues(def);
 					const sameSet = defined.length === inDb.length && defined.every((value) => inDb.includes(value));
 					if (!sameSet) {
 						report('enum_mismatch', columnName, defined.join(', '), inDb.join(', '), 'enum values differ');
@@ -337,7 +394,7 @@ export async function checkSchemaDrift(
 			}
 
 			// Foreign key
-			const foreignKeys = foreignKeysByColumn.get(columnKey) ?? [];
+			const foreignKeys = catalog.foreignKeysByColumn.get(columnKey) ?? [];
 			const ref = def.references;
 			if (ref) {
 				const target = parseTableName(ref.table, defaultSchema);
@@ -374,7 +431,7 @@ export async function checkSchemaDrift(
 			}
 		}
 
-		if (!options.ignoreExtraColumns) {
+		if (!ignoreExtraColumns) {
 			for (const col of dbColumns) {
 				if (!Object.prototype.hasOwnProperty.call(definedColumns, col.column_name)) {
 					report('extra_column', col.column_name, 'nothing', 'column', 'column is not in the definition');
@@ -383,5 +440,20 @@ export async function checkSchemaDrift(
 		}
 	}
 
+	return issues;
+}
+
+/**
+ * Compares table definitions with the database and returns every difference found.
+ * Only reads the system catalog. Composite unique constraints and composite foreign keys are not compared.
+ */
+export async function checkSchemaDrift(
+	tables: TableDefinition<any>[],
+	options: SchemaDriftOptions = {}
+): Promise<SchemaDriftReport> {
+	const defaultSchema = options.defaultSchema ?? 'public';
+	const targets = resolveTables(tables, defaultSchema);
+	const catalog = await readCatalog(targets, queryFnFrom(options));
+	const issues = compareWithCatalog(targets, catalog, defaultSchema, options.ignoreExtraColumns ?? false);
 	return {ok: issues.length === 0, issues};
 }

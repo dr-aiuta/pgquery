@@ -115,7 +115,7 @@ describe('checkSchemaDrift', () => {
 		expect(report.issues).toEqual([]);
 	});
 
-	it('compares enum values regardless of order and only queries labels for user-defined types', async () => {
+	it('compares enum values regardless of order and queries labels for used and expected enum types', async () => {
 		const table: TableDefinition<any> = {
 			tableName: 'posts',
 			schema: {columns: {status: {type: 'ENUM', enum: ['published', 'draft']}}},
@@ -137,7 +137,7 @@ describe('checkSchemaDrift', () => {
 		});
 		const report = await checkSchemaDrift([table], {query});
 		expect(report.issues).toEqual([]);
-		expect(calls.find((call) => call.text.includes('pg_enum'))?.values).toEqual([['post_status']]);
+		expect(calls.find((call) => call.text.includes('pg_enum'))?.values).toEqual([['post_status', 'posts_status']]);
 	});
 
 	it('reports an unexpected foreign key when the definition has no references', async () => {

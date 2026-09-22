@@ -25,6 +25,7 @@ export type {
 	DatabaseSchema,
 	ColumnReference,
 	ForeignKeyAction,
+	SqlExpression,
 } from './types';
 export type {RequireExactlyOne, UniqueArray, InArray} from './types/utility-types';
 
@@ -49,6 +50,13 @@ export type {
 	SchemaDriftOptions,
 	SchemaDriftQueryFn,
 } from './schema/schema-drift';
+export {generateMigration} from './schema/migration-generator';
+export type {
+	GeneratedMigration,
+	GenerateMigrationOptions,
+	MigrationFormat,
+	MigrationStep,
+} from './schema/migration-generator';
 
 // Chained Insert features
 export {ChainedInsertBuilder, createChainedInsert} from './utils/chained-insert-builder';
