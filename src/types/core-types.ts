@@ -37,9 +37,6 @@ export type ColumnReference = {
 	onUpdate?: ForeignKeyAction;
 };
 
-// An SQL expression used as a column default, e.g. {sql: 'now()'}
-export type SqlExpression = {sql: string};
-
 // Model definition structure
 export type ColumnDefinition<T extends BaseColumnType = any> = {
 	type: T;
@@ -52,7 +49,7 @@ export type ColumnDefinition<T extends BaseColumnType = any> = {
 	autoIncrement?: boolean;
 	unique?: boolean;
 	notNull?: boolean;
-	default?: any; // Default value. Use {sql: '...'} for an SQL expression; strings like 'NOW()' are also treated as expressions
+	default?: any; // Default value. Use sqlExpression('now()') for an SQL expression; strings like 'NOW()' are also treated as expressions
 	references?: ColumnReference; // Foreign key
 };
 

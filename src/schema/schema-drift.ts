@@ -116,7 +116,8 @@ const ENUM_LABELS_SQL = `SELECT n.nspname AS udt_schema, t.typname AS udt_name, 
 FROM pg_enum e
 JOIN pg_type t ON t.oid = e.enumtypid
 JOIN pg_namespace n ON n.oid = t.typnamespace
-WHERE t.typname = ANY($1::text[])
+JOIN unnest($1::text[], $2::text[]) AS target(schema_name, type_name)
+	ON n.nspname = target.schema_name AND t.typname = target.type_name
 ORDER BY n.nspname, t.typname, e.enumsortorder`;
 
 export interface QualifiedName {
@@ -230,15 +231,22 @@ export async function readCatalog(targets: ResolvedTable[], query: SchemaDriftQu
 	]);
 
 	// Enum types used by existing columns, plus the ones the definitions expect (so new ones can be detected)
-	const enumTypeNames = new Set<string>(
-		columnsResult.rows.filter((r) => r.data_type === 'USER-DEFINED').map((r) => r.udt_name as string)
-	);
+	const enumTypes = new Map<string, QualifiedName>();
+	for (const r of columnsResult.rows.filter((r) => r.data_type === 'USER-DEFINED')) {
+		enumTypes.set(key(r.udt_schema, r.udt_name), {schema: r.udt_schema, table: r.udt_name});
+	}
 	for (const {name, columns} of targets) {
 		for (const [column, def] of Object.entries(columns)) {
-			if (def.type === 'ENUM') enumTypeNames.add(enumTypeFor(name, column, def).table);
+			if (def.type !== 'ENUM') continue;
+			const type = enumTypeFor(name, column, def);
+			enumTypes.set(key(type.schema, type.table), type);
 		}
 	}
-	const enumRows = enumTypeNames.size > 0 ? (await query(ENUM_LABELS_SQL, [[...enumTypeNames]])).rows : [];
+	const typeList = [...enumTypes.values()];
+	const enumRows =
+		typeList.length > 0
+			? (await query(ENUM_LABELS_SQL, [typeList.map((t) => t.schema), typeList.map((t) => t.table)])).rows
+			: [];
 
 	const enumLabels = new Map<string, string[]>();
 	for (const row of enumRows) {

@@ -2,6 +2,7 @@ import * as ts from 'typescript';
 import {defaultToSql, generateMigration, renderMigration, MigrationStep} from '../../src/schema/migration-generator';
 import {SchemaDriftQueryFn} from '../../src/schema/schema-drift';
 import {TableDefinition} from '../../src/types';
+import {sqlExpression} from '../../src/utils/sql-expression';
 
 // Empty catalog: every table is missing
 const emptyCatalog: SchemaDriftQueryFn = async () => ({rows: []});
@@ -44,8 +45,12 @@ describe('defaultToSql', () => {
 		expect(defaultToSql({a: 1})).toBe(`'{"a":1}'`);
 	});
 
+	it('renders a plain object with a sql key as a JSON literal, not an expression', () => {
+		expect(defaultToSql({sql: 'SELECT 1'})).toBe(`'{"sql":"SELECT 1"}'`);
+	});
+
 	it('renders expressions', () => {
-		expect(defaultToSql({sql: 'gen_random_uuid()'})).toBe('gen_random_uuid()');
+		expect(defaultToSql(sqlExpression('gen_random_uuid()'))).toBe('gen_random_uuid()');
 		expect(defaultToSql('NOW()')).toBe('NOW()');
 		expect(defaultToSql('CURRENT_TIMESTAMP')).toBe('CURRENT_TIMESTAMP');
 	});
@@ -104,13 +109,45 @@ describe('generateMigration', () => {
 		expect(await runUp(renderMigration(draft.steps))).toEqual([draft.steps[0].sql]);
 	});
 
-	it('marks an enum type with no listed values for review', async () => {
-		const table: TableDefinition<any> = {tableName: 'posts', schema: {columns: {status: {type: 'ENUM'}}}};
-		const draft = await generateMigration([table], {query: emptyCatalog});
-		expect(draft.needsReview).toBe(true);
-		expect(draft.steps[0]).toMatchObject({
-			review: true,
-			sql: 'CREATE TYPE "public"."posts_status" AS ENUM (/* values */)',
+	it('reviews everything that depends on an enum type with no listed values', async () => {
+		const posts: TableDefinition<any> = {
+			tableName: 'posts',
+			schema: {columns: {id: {type: 'INTEGER', primaryKey: true}, status: {type: 'ENUM'}}},
+		};
+		const comments: TableDefinition<any> = {
+			tableName: 'comments',
+			schema: {columns: {postId: {type: 'INTEGER', references: {table: 'posts', column: 'id'}}}},
+		};
+		const draft = await generateMigration([posts, comments], {query: emptyCatalog});
+		expect(draft.steps.map((s) => [s.review, s.sql.split('\n')[0]])).toEqual([
+			[true, 'CREATE TYPE "public"."posts_status" AS ENUM (/* values */)'],
+			[true, 'CREATE TABLE "public"."posts" ('],
+			[false, 'CREATE TABLE "public"."comments" ('],
+			[true, 'ALTER TABLE "public"."comments" ADD FOREIGN KEY ("postId") REFERENCES "public"."posts" ("id")'],
+		]);
+	});
+
+	it('gives the exact rename statement when one column disappears and one appears', async () => {
+		const table: TableDefinition<any> = {tableName: 'users', schema: {columns: {fullName: {type: 'TEXT'}}}};
+		const query: SchemaDriftQueryFn = async (text) => ({
+			rows: text.includes('information_schema.columns')
+				? [
+						{
+							table_schema: 'public',
+							table_name: 'users',
+							column_name: 'name',
+							data_type: 'text',
+							is_nullable: 'YES',
+							column_default: null,
+							is_identity: 'NO',
+						},
+					]
+				: [],
 		});
+		const draft = await generateMigration([table], {query});
+		const drop = draft.steps.find((s) => s.sql.includes('DROP COLUMN'));
+		expect(drop?.note).toBe(
+			'Dropping name deletes its data. If it was renamed, use: ALTER TABLE "public"."users" RENAME COLUMN "name" TO "fullName"'
+		);
 	});
 });

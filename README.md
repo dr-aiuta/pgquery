@@ -589,6 +589,8 @@ Supported column types:
 Declare a foreign key with `references`. The referenced table may be schema-qualified.
 
 ```typescript
+import {sqlExpression} from 'pg-lightquery';
+
 export const postsColumns = {
 	id: {type: 'BIGINT', primaryKey: true, autoIncrement: true},
 	userId: {
@@ -598,13 +600,13 @@ export const postsColumns = {
 	},
 	status: {type: 'ENUM', enum: ['draft', 'published'], notNull: true, default: 'draft'},
 	metadata: {type: 'JSONB'},
-	createdAt: {type: 'TIMESTAMP WITH TIME ZONE', notNull: true, default: {sql: 'now()'}},
+	createdAt: {type: 'TIMESTAMP WITH TIME ZONE', notNull: true, default: sqlExpression('now()')},
 } as const;
 ```
 
 Two fields matter for generated migrations:
 
-- **`default`** is a literal value. Use `{sql: '...'}` for an SQL expression. For compatibility, strings that look like a function call such as `'NOW()'`, and keywords such as `CURRENT_TIMESTAMP`, are also treated as expressions.
+- **`default`** is a literal value. Wrap an SQL expression in `sqlExpression('...')`. A plain object, such as a JSONB default, is always a literal. For compatibility, strings that look like a function call such as `'NOW()'`, and keywords such as `CURRENT_TIMESTAMP`, are also treated as expressions.
 - **`enumTypeName`** names the PostgreSQL enum type of an `ENUM` column, optionally schema-qualified. It defaults to `<table>_<column>`, for example `posts_status`. When set, the drift check also verifies it.
 
 ### Generating migrations
@@ -655,7 +657,9 @@ The generator follows one safety rule:
 - **Active steps only add things.** Examples are creating a type or table, adding a column, enum value, unique constraint or foreign key, and setting a default. If existing data conflicts, the step fails loudly at migration time.
 - **Everything that removes or changes something is commented out.** This covers drops, `NOT NULL` changes, type changes, primary key and identity changes, removed enum values and replaced foreign keys. Each one carries a note on what to check. A definition that merely forgot a flag can never silently remove a constraint.
 
-Some things cannot be decided from the schema alone. A renamed column looks like one dropped column and one new column, so the note suggests the rename instead. A new `NOT NULL` column on a table with rows needs a default or a backfill. Default expressions are compared by presence only, so changing a default's value is not detected.
+Foreign keys are added at the end of the migration, after every table and column exists. Tables that reference each other therefore work. Anything that depends on a review step becomes a review step too. An example is a table using an enum type whose values are not defined yet.
+
+Some things cannot be decided from the schema alone. A renamed column looks like one dropped column and one new column, so the note suggests a rename and lists the new columns in that table. A new `NOT NULL` column on a table with rows needs a default or a backfill. Default expressions are compared by presence only, so changing a default's value is not detected.
 
 The generator emits plain SQL through `pgm.sql`. The migration therefore runs exactly the reviewed statements, and the `sql` format works with any migration tool.
 

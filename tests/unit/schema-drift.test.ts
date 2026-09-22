@@ -137,7 +137,10 @@ describe('checkSchemaDrift', () => {
 		});
 		const report = await checkSchemaDrift([table], {query});
 		expect(report.issues).toEqual([]);
-		expect(calls.find((call) => call.text.includes('pg_enum'))?.values).toEqual([['post_status', 'posts_status']]);
+		expect(calls.find((call) => call.text.includes('pg_enum'))?.values).toEqual([
+			['public', 'public'],
+			['post_status', 'posts_status'],
+		]);
 	});
 
 	it('reports an unexpected foreign key when the definition has no references', async () => {
