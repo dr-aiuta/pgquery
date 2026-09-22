@@ -147,15 +147,16 @@ export class DatabaseOperations<T extends Record<string, {type: keyof ColumnType
 		const {allowedColumns = '*', predefinedSQL, options = {}} = input;
 		const {where = {}, alias = '', includeMetadata = false, schemaColumns} = options;
 
-		const selectAllColumns = allowedColumns === '*';
-		// For custom schema, we'll treat columns differently since we're not bound to the table schema
-		const treatedAllowedColumns = Array.isArray(allowedColumns) ? allowedColumns.map((col) => col.toString()) : ['*'];
+		// For custom schema, we'll treat columns differently since we're not bound to the table schema.
+		// With '*', use the provided schemaColumns as the allow-list when available. Without one,
+		// queryConstructor still restricts wildcard fields to plain identifiers.
+		const treatedAllowedColumns: string[] = Array.isArray(allowedColumns)
+			? allowedColumns.map((col) => `"${col.toString()}"`)
+			: schemaColumns
+				? Object.keys(schemaColumns).map((col) => `"${col}"`)
+				: ['*'];
 
-		let {sqlQuery: whereClause, urlQueryValuesArray} = queryConstructor(
-			selectAllColumns ? ['*'] : treatedAllowedColumns.map((col) => `"${col}"`),
-			where,
-			alias
-		);
+		let {sqlQuery: whereClause, urlQueryValuesArray} = queryConstructor(treatedAllowedColumns, where, alias);
 
 		let sqlText: string = '';
 
@@ -342,10 +343,10 @@ export class DatabaseOperations<T extends Record<string, {type: keyof ColumnType
 		let whereValues: any[] = [];
 
 		if (hasWhereClause) {
-			// Use '*' for allowedColumns to allow all columns in WHERE clause,
-			// since we already validated allowed columns above
+			// allowedColumns only governs which columns may be written. Any column of the table
+			// schema may be used to select the rows, but nothing outside the schema is accepted.
 			const whereResult = queryConstructor(
-				['*'], // Allow all columns for WHERE clause
+				this.treatAllowedColumns('*').map((col) => `"${col.toString()}"`),
 				where!,
 				'' // no alias for simple updates
 			);

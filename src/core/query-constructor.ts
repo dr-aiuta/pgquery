@@ -1,5 +1,28 @@
 import handleSQLQueryParts from '../utils/helpers';
 
+// Identifiers accepted when the allowed-columns list is the '*' wildcard.
+// Every identifier is emitted inside double quotes, so a name that cannot contain a
+// double quote (or anything else outside this pattern) cannot break out of them.
+const SAFE_IDENTIFIER = /^[A-Za-z_][A-Za-z0-9_]*$/;
+
+function isFieldAllowed(field: string, allowedColumns: string[]): boolean {
+	if (allowedColumns.includes(`"${field}"`)) return true;
+	if (!allowedColumns.includes('*')) return false;
+	if (!SAFE_IDENTIFIER.test(field)) {
+		throw new Error(`Invalid column name in query parameters: ${field}`);
+	}
+	return true;
+}
+
+// LIMIT is interpolated into the SQL text, so it must be a validated non-negative integer.
+function parseLimit(value: unknown): number {
+	const limit = typeof value === 'string' && /^\d+$/.test(value.trim()) ? Number(value) : value;
+	if (typeof limit !== 'number' || !Number.isInteger(limit) || limit < 0) {
+		throw new Error(`Invalid limit value: ${String(value)}. Expected a non-negative integer.`);
+	}
+	return limit;
+}
+
 export function queryConstructor(
 	allowedColumns: string[],
 	params: {[key: string]: any},
@@ -17,9 +40,9 @@ export function queryConstructor(
 
 	for (const [key, value] of Object.entries(params)) {
 		const [field, condition] = key.split('.');
-		if (allowedColumns.includes(`"${field}"`) || allowedColumns.includes('*')) {
+		if (isFieldAllowed(field, allowedColumns)) {
 			if (field === 'limit') {
-				limitPart = `LIMIT ${value}`;
+				limitPart = `LIMIT ${parseLimit(value)}`;
 			} else if (condition) {
 				switch (condition) {
 					case 'startDate':

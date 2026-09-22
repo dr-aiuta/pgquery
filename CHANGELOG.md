@@ -1,3 +1,14 @@
+# v0.4.6
+
+Security fix for GHSA-m2wx-4cwh-cgw5 (SQL injection through the `where` object).
+
+- `limit` must now be a non-negative integer (number or numeric string). Anything else throws.
+- `<column>.orderBy` must now be `ASC` or `DESC` (case-insensitive). Anything else throws.
+- Under the `'*'` allow-list, a `where` key must be a plain identifier (`/^[A-Za-z_][A-Za-z0-9_]*$/`). Anything else throws.
+- `update()` now restricts `where` keys to the table schema instead of accepting any key.
+- `selectWithCustomSchema()` uses `options.schemaColumns` as the allow-list when `allowedColumns` is `'*'`.
+- Nested JSON keys (`where: {col: {key: value}}`) are bound as parameters instead of being interpolated.
+
 # v0.0.19
 
 - Added sql functions

@@ -29,8 +29,9 @@ const jsonField = function (
 	queryValues: any[]
 ) {
 	for (const [jsonKey, jsonValue] of Object.entries(value)) {
-		whereConditions.push(`${aliasPrefix}"${field}" ->> '${jsonKey}' = $${queryValues.length + 1}`);
-		queryValues.push(jsonValue);
+		// The key is bound as a parameter, never interpolated, so it cannot break out of the SQL text.
+		whereConditions.push(`${aliasPrefix}"${field}" ->> $${queryValues.length + 1} = $${queryValues.length + 2}`);
+		queryValues.push(jsonKey, jsonValue);
 	}
 };
 
@@ -47,8 +48,15 @@ const dateField = function (
 	queryValues.push(new Date(value));
 };
 
+const ORDER_BY_DIRECTIONS = ['ASC', 'DESC'];
+
 const orderByField = function (aliasPrefix: string, field: string, value: any, orderByParts: string[]) {
-	orderByParts.push(`ORDER BY ${aliasPrefix}"${field}" ${value}`);
+	// The direction is interpolated into the SQL text, so it must come from a fixed allow-list.
+	const direction = String(value).toUpperCase();
+	if (!ORDER_BY_DIRECTIONS.includes(direction)) {
+		throw new Error(`Invalid orderBy direction for ${field}: ${String(value)}. Expected 'ASC' or 'DESC'.`);
+	}
+	orderByParts.push(`ORDER BY ${aliasPrefix}"${field}" ${direction}`);
 };
 
 const likeField = function (
