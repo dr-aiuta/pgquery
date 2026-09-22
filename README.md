@@ -561,6 +561,91 @@ const activeUsers = await users
 	.execute();
 ```
 
+## Migrations & Schema Drift
+
+pg-lightquery does not run migrations. Pair it with a dedicated migration tool. [node-pg-migrate](https://github.com/salsita/node-pg-migrate) is a good fit, because it is Postgres-only and uses the same `pg` driver.
+
+The two tools have separate jobs:
+
+- **Migrations are the source of truth for the database.** node-pg-migrate creates and alters tables.
+- **Table definitions describe the database to your code.** pg-lightquery uses them for typing and query building.
+- **`checkSchemaDrift` keeps the two honest.** It compares your definitions with the live database and reports every difference.
+
+### Column types and foreign keys
+
+Supported column types:
+
+| Type | TypeScript type |
+| --- | --- |
+| `VARCHAR`, `TEXT`, `UUID` | `string` |
+| `SMALLINT`, `INTEGER`, `NUMERIC`, `REAL`, `DOUBLE PRECISION` | `number` |
+| `BIGINT` | `string \| number` (node-postgres returns BIGINT as a string by default) |
+| `BOOLEAN` | `boolean` |
+| `JSON`, `JSONB` | `unknown` |
+| `DATE`, `TIMESTAMP WITHOUT TIME ZONE`, `TIMESTAMP WITH TIME ZONE` | `Date \| string` |
+| `ENUM` | `string \| number` |
+
+Declare a foreign key with `references`. The referenced table may be schema-qualified.
+
+```typescript
+export const postsColumns = {
+	id: {type: 'BIGINT', primaryKey: true, autoIncrement: true},
+	userId: {
+		type: 'INTEGER',
+		notNull: true,
+		references: {table: 'users', column: 'id', onDelete: 'CASCADE'},
+	},
+	status: {type: 'ENUM', enum: ['draft', 'published'], notNull: true, default: 'draft'},
+	metadata: {type: 'JSONB'},
+} as const;
+```
+
+### Running migrations, then checking drift
+
+```typescript
+import {runner} from 'node-pg-migrate';
+import {PostgresConnection, checkSchemaDrift} from 'pg-lightquery';
+
+const databaseUrl = process.env.DATABASE_URL!;
+
+// 1. Apply pending migrations with node-pg-migrate
+await runner({databaseUrl, dir: 'migrations', direction: 'up', migrationsTable: 'pgmigrations'});
+
+// 2. Start pg-lightquery
+PostgresConnection.initialize({connectionString: databaseUrl});
+
+// 3. Fail fast if the table definitions no longer match the database
+const report = await checkSchemaDrift([usersTable, postsTable]);
+if (!report.ok) {
+	throw new Error(`Schema drift:\n${report.issues.map((issue) => issue.message).join('\n')}`);
+}
+```
+
+A typical message reads:
+
+```
+public.users.email: type differs (expected character varying(100), found character varying(255))
+```
+
+`checkSchemaDrift` only reads the system catalog. It compares, per column:
+
+- existence of the table and column, and extra database columns
+- data type, including `VARCHAR` length and `NUMERIC` precision and scale when defined
+- enum values for `ENUM` columns backed by a PostgreSQL enum type
+- `NOT NULL`, primary key, single-column `unique`, and `autoIncrement` (serial or identity)
+- presence of a default, but not its expression, because PostgreSQL rewrites default expressions
+- single-column foreign keys, including `onDelete` and `onUpdate` when defined
+
+Options:
+
+| Option | Default | Purpose |
+| --- | --- | --- |
+| `defaultSchema` | `'public'` | Schema for table names without a schema prefix |
+| `ignoreExtraColumns` | `false` | Skip database columns that the definition does not declare |
+| `query` | the initialized `PostgresConnection` | Custom query function, for example a `pg` client inside a test transaction |
+
+Composite unique constraints and composite foreign keys are not compared. Column names are matched exactly, and unquoted table names are folded to lower case, just as PostgreSQL does.
+
 ## Testing Made Easy
 
 ```typescript

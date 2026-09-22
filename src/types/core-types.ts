@@ -3,12 +3,21 @@
 // Type mapping from base types to TypeScript types
 export type ColumnTypeMapping = {
 	VARCHAR: string;
-	INTEGER: number;
-	NUMERIC: number;
 	TEXT: string;
+	UUID: string;
+	SMALLINT: number;
+	INTEGER: number;
+	BIGINT: string | number; // node-postgres returns BIGINT as a string by default to avoid precision loss
+	NUMERIC: number;
+	REAL: number;
+	'DOUBLE PRECISION': number;
+	BOOLEAN: boolean;
+	JSON: unknown;
+	JSONB: unknown;
 	DATE: Date | string;
 	ENUM: Enumerator | Enumerator[];
 	'TIMESTAMP WITHOUT TIME ZONE': Date | string;
+	'TIMESTAMP WITH TIME ZONE': Date | string;
 };
 
 // Define the base types without parameters
@@ -16,6 +25,17 @@ export type BaseColumnType = keyof ColumnTypeMapping;
 
 // Define the enum for possible enumerator values
 export type Enumerator = string | number; // ENUM type should support strings and/or numbers
+
+// Referential actions for foreign keys
+export type ForeignKeyAction = 'NO ACTION' | 'RESTRICT' | 'CASCADE' | 'SET NULL' | 'SET DEFAULT';
+
+// Foreign key target of a column. `table` may be schema-qualified, e.g. 'auth.users'.
+export type ColumnReference = {
+	table: string;
+	column: string;
+	onDelete?: ForeignKeyAction;
+	onUpdate?: ForeignKeyAction;
+};
 
 // Model definition structure
 export type ColumnDefinition<T extends BaseColumnType = any> = {
@@ -29,6 +49,7 @@ export type ColumnDefinition<T extends BaseColumnType = any> = {
 	unique?: boolean;
 	notNull?: boolean;
 	default?: any; // Default value for the column
+	references?: ColumnReference; // Foreign key
 };
 
 // Helper type to transform the model definition into an instance type

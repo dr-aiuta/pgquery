@@ -23,6 +23,8 @@ export type {
 	TableDefinition,
 	ColumnsDefinition,
 	DatabaseSchema,
+	ColumnReference,
+	ForeignKeyAction,
 } from './types';
 export type {RequireExactlyOne, UniqueArray, InArray} from './types/utility-types';
 
@@ -37,6 +39,16 @@ export {EnhancedCTEBuilder, createEnhancedCTE} from './utils/enhanced-cte-builde
 export type {CTEReference, CTEConfig} from './utils/enhanced-cte-builder';
 export {CTETransactionBuilder, createCTETransaction} from './utils/cte-transaction-builder';
 export type {CTEStep, CTEInsertConfig} from './utils/cte-transaction-builder';
+
+// Schema drift checking: compare table definitions with the live database
+export {checkSchemaDrift} from './schema/schema-drift';
+export type {
+	SchemaDriftReport,
+	SchemaDriftIssue,
+	SchemaDriftKind,
+	SchemaDriftOptions,
+	SchemaDriftQueryFn,
+} from './schema/schema-drift';
 
 // Chained Insert features
 export {ChainedInsertBuilder, createChainedInsert} from './utils/chained-insert-builder';
