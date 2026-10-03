@@ -1,4 +1,4 @@
-import {setupTests, dbpg, createMockQueryResult} from '../pg-lightquery/test-setup';
+import {setupTests} from '../pg-lightquery/test-setup';
 import {createChainedInsert} from '../../../src/utils/chained-insert-builder';
 import {DatabaseOperations} from '../../../src/core/database-operations';
 import {TableDefinition} from '../../../src/types/core-types';
@@ -217,7 +217,8 @@ describe('ChainedInsertBuilder - SQL Generation Tests', () => {
 				.selectFrom('test_user', 'id')
 				.build();
 
-			expect(specificSelect.queries[0].sqlText).toContain('SELECT id FROM test_user;');
+			// A selectFrom column is checked and quoted.
+			expect(specificSelect.queries[0].sqlText).toContain('SELECT "id" FROM test_user;');
 
 			// Test all columns select
 			const allSelect = createChainedInsert()

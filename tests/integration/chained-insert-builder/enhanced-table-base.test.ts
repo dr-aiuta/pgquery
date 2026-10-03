@@ -316,7 +316,7 @@ describe('EnhancedTableBase - Advanced Reusability Tests', () => {
 			// Find the call with the actual query (not BEGIN/COMMIT)
 			const queryCall = calls.find(([sql]) => sql.includes('WITH new_user AS'));
 			expect(queryCall).toBeDefined();
-			const [sqlArg, valuesArg] = queryCall;
+			const [, valuesArg] = queryCall;
 			expect(valuesArg).toContain(newUserData.name);
 			expect(valuesArg).toContain(newUserData.email);
 		});

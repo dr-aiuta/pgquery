@@ -1,5 +1,4 @@
 import {setupTests, dbpg, usersTable} from './test-setup';
-import {SelectUserDetailsInterface} from '../../tables/views/selectUserDetails';
 
 describe('Table Operations - Custom Schema Queries', () => {
 	setupTests();

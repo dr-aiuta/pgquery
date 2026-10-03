@@ -5,7 +5,6 @@ describe('Table Operations - Date Range Queries', () => {
 
 	it('gets users created within a date range', async () => {
 		const startDate = new Date('2023-01-01');
-		const endDate = new Date('2023-12-31');
 		const expectedResult = [
 			{
 				id: 1,

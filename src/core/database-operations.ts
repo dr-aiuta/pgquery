@@ -1,6 +1,6 @@
+import PostgresConnection from '../connection/postgres-connection';
 import * as queryUtils from '../utils/query-utils';
 import * as queryBuilder from '../utils/query-builder';
-import * as queryExecutor from '../utils/query-executor';
 import * as arrayUtils from '../utils/array-utils';
 import * as classUtils from '../utils/class-utils';
 import {TableDefinition} from '../types/core-types';
@@ -8,11 +8,8 @@ import {ColumnDefinition, SchemaToData, ColumnTypeMapping} from '../types/core-t
 import {QueryArrayResult, QueryResultRow} from 'pg';
 import {
 	QueryObject,
-	adjustPlaceholders,
-	findMaxPlaceholder,
 	QueryResult,
 	TransactionResult,
-	AllowedColumns,
 	OnConflict,
 	BaseOptions,
 	UpdateBaseOptions,
@@ -23,10 +20,25 @@ import {
 	CustomSelectOptions,
 	extractUpdateParts,
 } from '../utils/query-utils';
-import {queryConstructor, SAFE_IDENTIFIER} from './query-constructor';
+import {queryConstructor} from './query-constructor';
 import {QueryInputError} from '../utils/query-input-error';
+import {isIdentifier, tableName as checkedTableName} from '../sql/identifiers';
+import {maxPlaceholder, renumber} from '../sql/placeholders';
 
 type PredefinedSQL = {sqlText: string; values?: any[]};
+
+/** What select and selectWithCustomSchema both take */
+interface SelectInput {
+	allowedColumns: unknown;
+	predefinedSQL?: PredefinedSQL;
+	options?: {
+		where?: Record<string, any>;
+		ignoreUnknownKeys?: boolean;
+		columnsToReturn?: unknown;
+	};
+}
+
+const PAGING_KEYS = ['limit', 'offset'];
 
 /**
  * Internal database operations class - not exposed to end users
@@ -45,7 +57,8 @@ export class DatabaseOperations<T extends Record<string, {type: keyof ColumnType
 	public readonly maxLimit?: number;
 
 	constructor(tableDefinition: TableDefinition<T>) {
-		this.tableName = tableDefinition.tableName;
+		// The table name is written into the SQL text without quotes, so it is checked once, here.
+		this.tableName = checkedTableName(tableDefinition.tableName);
 		this.schema = {
 			columns: tableDefinition.schema.columns,
 			primaryKeys: this.filterPrimaryKeys(tableDefinition.schema.columns),
@@ -80,7 +93,7 @@ export class DatabaseOperations<T extends Record<string, {type: keyof ColumnType
 	private treatAllowedColumns(
 		allowedColumns: (keyof T)[] | '*',
 		allowedColumnsOptions?: ('limit' | 'offset')[],
-		schemaColumns?: Record<string, ColumnDefinition>
+		schemaColumns?: Record<string, unknown>
 	): Array<keyof T | 'limit' | 'offset'> {
 		let treated: Array<keyof T | 'limit' | 'offset'>;
 		if (allowedColumns === '*') {
@@ -90,7 +103,7 @@ export class DatabaseOperations<T extends Record<string, {type: keyof ColumnType
 			const schemaKeys = new Set(Object.keys(schemaColumns || this.schema.columns));
 
 			// Filter out pagination parameters before schema validation
-			const paginationParams = new Set(['limit', 'offset']);
+			const paginationParams = new Set(PAGING_KEYS);
 			const columnsToValidate = allowedColumns.filter((column) => !paginationParams.has(column as string));
 
 			columnsToValidate.forEach((column) => {
@@ -113,17 +126,6 @@ export class DatabaseOperations<T extends Record<string, {type: keyof ColumnType
 		return treated;
 	}
 
-	/** The quoted column list of a SELECT, or '*'. Paging keys are not columns. */
-	private projection(columns: (keyof T)[] | '*', schemaColumns?: Record<string, ColumnDefinition>): string {
-		if (columns === '*') {
-			return '*';
-		}
-		return this.treatAllowedColumns(columns, [], schemaColumns)
-			.filter((col) => col !== 'limit' && col !== 'offset')
-			.map((col) => `"${col.toString()}"`)
-			.join(', ');
-	}
-
 	/**
 	 * Combines predefined SQL with a generated clause and a projection.
 	 *
@@ -138,6 +140,13 @@ export class DatabaseOperations<T extends Record<string, {type: keyof ColumnType
 		clause: string,
 		clauseValues: any[]
 	): QueryObject {
+		const highestPlaceholder = maxPlaceholder(predefinedSQL.sqlText);
+		// Values that do not match the placeholders would only fail once the query reaches PostgreSQL.
+		if (predefinedSQL.values !== undefined && predefinedSQL.values.length !== highestPlaceholder) {
+			throw new QueryInputError(
+				`predefinedSQL has ${predefinedSQL.values.length} values, but its highest placeholder is $${highestPlaceholder}.`
+			);
+		}
 		const predefinedValues = predefinedSQL.values || [];
 		if (clause === '' && projection === '*') {
 			return {sqlText: predefinedSQL.sqlText, values: predefinedValues};
@@ -145,10 +154,80 @@ export class DatabaseOperations<T extends Record<string, {type: keyof ColumnType
 
 		const innerSql = predefinedSQL.sqlText.trim().replace(/;+$/, '');
 		// Placeholders of the clause continue after the highest one of the predefined SQL.
-		const adjustedClause = adjustPlaceholders(clause, findMaxPlaceholder(innerSql));
+		const adjustedClause = renumber(clause, highestPlaceholder);
 		// The line breaks keep a trailing line comment of the predefined SQL from swallowing the rest.
 		const sqlText = `SELECT ${projection} FROM (\n${innerSql}\n) AS q ${adjustedClause}`.trim();
 		return {sqlText, values: predefinedValues.concat(clauseValues)};
+	}
+
+	/**
+	 * The one implementation behind select and selectWithCustomSchema.
+	 *
+	 * @param schema - The columns to check names against. select passes the table schema, or
+	 *   options.schemaColumns. selectWithCustomSchema passes options.schemaColumns, which may be undefined:
+	 *   then '*' accepts any plain identifier, and a column to return must be a plain identifier.
+	 * @param listIsChecked - Whether an explicit allowedColumns list must be part of the schema.
+	 *   A custom schema declares its columns through the list itself, so there the list is taken as given.
+	 */
+	private buildSelect<U extends QueryResultRow>(
+		method: string,
+		input: SelectInput,
+		schema: Record<string, unknown> | undefined,
+		listIsChecked: boolean
+	): QueryResult<Partial<U>[]> {
+		const {allowedColumns, predefinedSQL, options = {}} = input;
+		this.requireAllowedColumns(method, allowedColumns);
+		const {where = {}, ignoreUnknownKeys = false, columnsToReturn} = options;
+		const quote = (column: unknown) => `"${String(column)}"`;
+
+		// 1. The columns a where key may name. limit and offset are paging keys, allowed next to any list.
+		let filterColumns: string[];
+		if (allowedColumns === '*' && !schema) {
+			// No schema to expand '*' with. queryConstructor still restricts fields to plain identifiers.
+			filterColumns = ['*'];
+		} else if (listIsChecked || allowedColumns === '*') {
+			filterColumns = this.treatAllowedColumns(allowedColumns as (keyof T)[] | '*', ['limit', 'offset'], schema).map(quote);
+		} else {
+			filterColumns = (allowedColumns as unknown[]).map(quote).concat(PAGING_KEYS.map(quote));
+		}
+
+		// 2. The WHERE, ORDER BY, LIMIT and OFFSET clause, with its values bound as parameters
+		const {sqlQuery: clause, urlQueryValuesArray: clauseValues} = queryConstructor(filterColumns, where, {
+			ignoreUnknownKeys,
+			maxLimit: this.maxLimit,
+		});
+
+		// 3. The columns to return. They are written into the SQL text, so each one is checked first.
+		// Without predefined SQL, a missing columnsToReturn falls back to allowedColumns.
+		const returnColumns = columnsToReturn !== undefined ? columnsToReturn : predefinedSQL ? '*' : allowedColumns;
+		let projection = '*';
+		if (returnColumns !== '*') {
+			if (!Array.isArray(returnColumns)) {
+				throw new QueryInputError(`Invalid columnsToReturn. Expected '*' or an array of column names.`);
+			}
+			arrayUtils.checkArrayUniqueness(returnColumns);
+			const columns = returnColumns.filter((column) => !PAGING_KEYS.includes(String(column)));
+			for (const column of columns) {
+				const known = schema ? Object.prototype.hasOwnProperty.call(schema, String(column)) : isIdentifier(column);
+				if (!known) {
+					throw new QueryInputError(`Column ${String(column)} is not in the provided schema`);
+				}
+			}
+			projection = columns.map(quote).join(', ');
+		}
+
+		// 4. The statement
+		const queryObject: QueryObject = predefinedSQL
+			? this.wrapPredefinedSQL(predefinedSQL, projection, clause, clauseValues)
+			: {sqlText: `SELECT ${projection} FROM ${this.tableName} ${clause}`, values: clauseValues};
+
+		return {
+			query: queryObject, // The SQL query and parameters for inspection/logging
+			execute: async (): Promise<Partial<U>[]> => {
+				const result = await PostgresConnection.query(queryObject.sqlText, queryObject.values);
+				return result.rows as Partial<U>[];
+			},
+		};
 	}
 
 	/** The columns of the conflict target of an upsert. Empty when the insert has no ON CONFLICT clause. */
@@ -184,9 +263,15 @@ export class DatabaseOperations<T extends Record<string, {type: keyof ColumnType
 	 * Available to table implementers through composition
 	 *
 	 * allowedColumns names the columns that may be written. Keys of `data` outside it are dropped.
-	 * A null value writes NULL. Only undefined is skipped.
+	 * A null value writes NULL. Only undefined is skipped. A sqlExpression(...) value is written
+	 * into the SQL text and is not bound.
+	 *
+	 * @param layout - Internal. The chained builder asks for the one-line layout of a referenced step.
 	 */
-	public insert(input: BaseOptions<T> & {options: InsertOptions<T>}): QueryResult<Partial<SchemaToData<T>>[]> {
+	public insert(
+		input: BaseOptions<T> & {options: InsertOptions<T>},
+		layout: {compact?: boolean} = {}
+	): QueryResult<Partial<SchemaToData<T>>[]> {
 		const {allowedColumns, options} = input;
 		this.requireAllowedColumns('insert', allowedColumns);
 		const {data, returnField, onConflict = false, idUser = 'SERVER'} = options;
@@ -197,7 +282,7 @@ export class DatabaseOperations<T extends Record<string, {type: keyof ColumnType
 		const conflictTarget = this.conflictTarget(onConflict);
 		const keptOnConflict = [...new Set([...this.schema.primaryKeys, ...conflictTarget])];
 
-		const {columnsNamesForInsert, columnValuesForInsert, assignmentsForConflictUpdate} =
+		const {columnsNamesForInsert, columnValuesForInsert, expressionsForInsert, assignmentsForConflictUpdate} =
 			queryUtils.extractInsertAndUpdateAssignmentParts(
 				data,
 				treatedAllowedColumns,
@@ -214,7 +299,8 @@ export class DatabaseOperations<T extends Record<string, {type: keyof ColumnType
 			conflictTarget,
 			assignmentsForConflictUpdate,
 			returnField,
-			this.schema.columns
+			this.schema.columns,
+			{expressions: expressionsForInsert, compact: layout.compact}
 		);
 
 		const queryObject: QueryObject = {
@@ -225,8 +311,8 @@ export class DatabaseOperations<T extends Record<string, {type: keyof ColumnType
 		return {
 			query: queryObject,
 			execute: async (): Promise<Partial<SchemaToData<T>>[]> => {
-				const result = await queryExecutor.executeInsertQuery<Partial<SchemaToData<T>>>(sqlText, values);
-				return result;
+				const result = await PostgresConnection.query(sqlText, values);
+				return result.rows;
 			},
 		};
 	}
@@ -242,61 +328,13 @@ export class DatabaseOperations<T extends Record<string, {type: keyof ColumnType
 	public selectWithCustomSchema<U extends QueryResultRow, CustomSchema extends Record<string, any>>(
 		input: CustomBaseOptions<CustomSchema> & {options?: CustomSelectOptions<CustomSchema>}
 	): QueryResult<Partial<U>[]> {
-		const {allowedColumns, predefinedSQL, options = {}} = input;
-		this.requireAllowedColumns('selectWithCustomSchema', allowedColumns);
-		if (!predefinedSQL) {
+		if (!input.predefinedSQL) {
+			this.requireAllowedColumns('selectWithCustomSchema', input.allowedColumns);
 			throw new QueryInputError('predefinedSQL is required when using selectWithCustomSchema');
 		}
-		const {where = {}, ignoreUnknownKeys = false, includeMetadata = false, schemaColumns, columnsToReturn} = options;
-
-		// For custom schema, we'll treat columns differently since we're not bound to the table schema.
-		// With '*', use the provided schemaColumns as the allow-list when available. Without one,
-		// queryConstructor still restricts wildcard fields to plain identifiers.
-		// limit and offset are paging keys, not columns. They are allowed next to an explicit list,
-		// as select does. The bare wildcard already accepts them.
-		const pagingKeys = ['"limit"', '"offset"'];
-		const treatedAllowedColumns: string[] = Array.isArray(allowedColumns)
-			? allowedColumns.map((col) => `"${col.toString()}"`).concat(pagingKeys)
-			: schemaColumns
-				? Object.keys(schemaColumns)
-						.map((col) => `"${col}"`)
-						.concat(pagingKeys)
-				: ['*'];
-
-		const {sqlQuery: clause, urlQueryValuesArray: clauseValues} = queryConstructor(treatedAllowedColumns, where, {
-			ignoreUnknownKeys,
-			maxLimit: this.maxLimit,
-		});
-
-		// The columns to return are written into the SQL text, so each one is checked first:
-		// against schemaColumns when given, and as a plain identifier otherwise.
-		let projection = '*';
-		if (columnsToReturn !== undefined && columnsToReturn !== '*') {
-			if (!Array.isArray(columnsToReturn)) {
-				throw new QueryInputError(`Invalid columnsToReturn. Expected '*' or an array of column names.`);
-			}
-			arrayUtils.checkArrayUniqueness(columnsToReturn);
-			for (const column of columnsToReturn) {
-				const name = String(column);
-				const known = schemaColumns
-					? Object.prototype.hasOwnProperty.call(schemaColumns, name)
-					: SAFE_IDENTIFIER.test(name);
-				if (!known) {
-					throw new QueryInputError(`Column ${name} is not in the provided schema`);
-				}
-			}
-			projection = columnsToReturn.map((column) => `"${String(column)}"`).join(', ');
-		}
-
-		const queryObject = this.wrapPredefinedSQL(predefinedSQL, projection, clause, clauseValues);
-
-		return {
-			query: queryObject,
-			execute: async (): Promise<Partial<U>[]> => {
-				const result = await queryExecutor.executeSelectQuery(queryObject.sqlText, queryObject.values);
-				return result as Partial<U>[];
-			},
-		};
+		// A custom schema is not bound to the table schema. With '*', options.schemaColumns is the
+		// allow-list when it is given. An explicit list is taken as given.
+		return this.buildSelect<U>('selectWithCustomSchema', input, input.options?.schemaColumns, false);
 	}
 
 	/**
@@ -336,52 +374,7 @@ export class DatabaseOperations<T extends Record<string, {type: keyof ColumnType
 	public select<U extends QueryResultRow = SchemaToData<T>>(
 		input: BaseOptions<T> & {options?: SelectOptions<T>}
 	): QueryResult<Partial<U>[]> {
-		// allowedColumns: which columns can be used in WHERE clauses (security/validation)
-		// predefinedSQL: optional pre-written SQL query to extend
-		// options: additional query options like where conditions, columns to return, etc.
-		const {allowedColumns, predefinedSQL, options = {}} = input;
-		this.requireAllowedColumns('select', allowedColumns);
-		const {where = {}, ignoreUnknownKeys = false, includeMetadata = false, schemaColumns, columnsToReturn} = options;
-
-		// Process and validate the allowed columns for WHERE clause validation
-		// This ensures only valid columns are used in WHERE conditions and adds pagination support
-		const treatedAllowedColumns = this.treatAllowedColumns(allowedColumns, ['limit', 'offset'], schemaColumns);
-
-		// Build the WHERE clause and extract parameter values
-		// The queryConstructor creates parameterized queries to prevent SQL injection
-		// It returns both the WHERE clause SQL and an array of parameter values
-		const {sqlQuery: whereClause, urlQueryValuesArray} = queryConstructor(
-			treatedAllowedColumns.map((col) => `"${col.toString()}"`), // Quote column names for SQL safety
-			where,
-			{ignoreUnknownKeys, maxLimit: this.maxLimit}
-		);
-
-		let queryObject: QueryObject;
-
-		if (predefinedSQL) {
-			// Branch 1: predefined SQL. Its own column list stands unless columnsToReturn narrows it.
-			const projection = columnsToReturn === undefined ? '*' : this.projection(columnsToReturn, schemaColumns);
-			queryObject = this.wrapPredefinedSQL(predefinedSQL, projection, whereClause, urlQueryValuesArray);
-		} else {
-			// Branch 2: Build a standard SELECT query from scratch
-			// If columnsToReturn is not specified, fall back to allowedColumns for backward compatibility
-			const returnColumns = columnsToReturn !== undefined ? columnsToReturn : allowedColumns;
-			const columnsToSelect = this.projection(returnColumns, schemaColumns);
-
-			queryObject = {
-				sqlText: `SELECT ${columnsToSelect} FROM ${this.tableName} ${whereClause}`,
-				values: urlQueryValuesArray,
-			};
-		}
-
-		// Return a QueryResult object with the query and an execute function
-		return {
-			query: queryObject, // The SQL query and parameters for inspection/logging
-			execute: async (): Promise<Partial<U>[]> => {
-				const result = await queryExecutor.executeSelectQuery(queryObject.sqlText, queryObject.values);
-				return result as Partial<U>[];
-			},
-		};
+		return this.buildSelect<U>('select', input, input?.options?.schemaColumns || this.schema.columns, true);
 	}
 
 	/**
@@ -389,9 +382,15 @@ export class DatabaseOperations<T extends Record<string, {type: keyof ColumnType
 	 * Available to table implementers through composition
 	 *
 	 * allowedColumns names the columns that may be written. Keys of `data` outside it are dropped.
-	 * A null value writes NULL. Only undefined is skipped.
+	 * A null value writes NULL. Only undefined is skipped. A sqlExpression(...) value is written
+	 * into the SQL text and is not bound.
+	 *
+	 * @param layout - Internal. The chained builder asks for the one-line layout of a referenced step.
 	 */
-	public update(input: UpdateBaseOptions<T> & {options: UpdateOptions<T>}): QueryResult<Partial<SchemaToData<T>>[]> {
+	public update(
+		input: UpdateBaseOptions<T> & {options: UpdateOptions<T>},
+		layout: {compact?: boolean} = {}
+	): QueryResult<Partial<SchemaToData<T>>[]> {
 		const {allowedColumns, options} = input;
 		if ((input as {predefinedSQL?: unknown}).predefinedSQL !== undefined) {
 			throw new QueryInputError(
@@ -413,7 +412,7 @@ export class DatabaseOperations<T extends Record<string, {type: keyof ColumnType
 		const treatedAllowedColumns = this.treatAllowedColumns(allowedColumns);
 
 		// Extract update data parts
-		const {columnsNamesForUpdate, columnValuesForUpdate} = extractUpdateParts(
+		const {columnsNamesForUpdate, columnValuesForUpdate, expressionsForUpdate} = extractUpdateParts(
 			data,
 			treatedAllowedColumns,
 			this.schema.columns,
@@ -421,7 +420,7 @@ export class DatabaseOperations<T extends Record<string, {type: keyof ColumnType
 		);
 
 		// Validate that there's data to update
-		if (columnsNamesForUpdate.length === 0) {
+		if (columnsNamesForUpdate.length === 0 && expressionsForUpdate.length === 0) {
 			throw new QueryInputError('No valid columns provided for update operation.');
 		}
 
@@ -452,7 +451,8 @@ export class DatabaseOperations<T extends Record<string, {type: keyof ColumnType
 			whereClause,
 			whereValues,
 			returnField,
-			this.schema.columns
+			this.schema.columns,
+			{expressions: expressionsForUpdate, compact: layout.compact}
 		);
 
 		const queryObject: QueryObject = {
@@ -463,8 +463,8 @@ export class DatabaseOperations<T extends Record<string, {type: keyof ColumnType
 		return {
 			query: queryObject,
 			execute: async (): Promise<Partial<SchemaToData<T>>[]> => {
-				const result = await queryExecutor.executeUpdateQuery<Partial<SchemaToData<T>>>(sqlText, values);
-				return result;
+				const result = await PostgresConnection.query(sqlText, values);
+				return result.rows;
 			},
 		};
 	}
@@ -479,7 +479,9 @@ export class DatabaseOperations<T extends Record<string, {type: keyof ColumnType
 		const transactionResult: TransactionResult<QueryArrayResult<any>[]> = {
 			queries,
 			execute: async (): Promise<QueryArrayResult<any>[]> => {
-				return queryExecutor.executeTransactionQuery(queries);
+				// One client runs BEGIN, every statement and COMMIT.
+				const results = await PostgresConnection.transaction(queries);
+				return results as unknown as QueryArrayResult<any>[];
 			},
 			add: (query: QueryObject): TransactionResult<QueryArrayResult<any>[]> => {
 				queries.push(query);
@@ -489,4 +491,29 @@ export class DatabaseOperations<T extends Record<string, {type: keyof ColumnType
 
 		return transactionResult;
 	}
+}
+
+// ---------- Access for the chained builder ----------
+
+// A table class keeps its DatabaseOperations in a protected member. The chained builder needs it
+// to build a step for that table. This map is how it gets it. It is not part of the package entry.
+const operationsOfTable = new WeakMap<object, DatabaseOperations<any>>();
+
+/** Called by TableBase, so a chain can take the table class itself. */
+export function registerTableOperations(table: object, operations: DatabaseOperations<any>): void {
+	operationsOfTable.set(table, operations);
+}
+
+/** Returns the DatabaseOperations behind a chain step's table: the object itself, or the one of a table class. */
+export function operationsOf<T extends Record<string, {type: keyof ColumnTypeMapping}>>(
+	table: unknown
+): DatabaseOperations<T> {
+	if (table instanceof DatabaseOperations) {
+		return table;
+	}
+	const operations = typeof table === 'object' && table !== null ? operationsOfTable.get(table) : undefined;
+	if (!operations) {
+		throw new QueryInputError('Invalid table for a chain step. Pass a table class instance, or a registered table name.');
+	}
+	return operations;
 }

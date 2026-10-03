@@ -49,31 +49,32 @@ describe('consumer chains', () => {
 					'charge_type_cte AS (',
 					'  INSERT INTO charge_types ("type", "idCharge") VALUES ($8, (SELECT "idCharge" FROM charge_cte)) RETURNING *',
 					'),',
-					'charge_ref_deal_0_cte AS (',
-					'  INSERT INTO charges_ref ("idBillableItem", "amount", "idCharge") VALUES ($9, $10, (SELECT "idCharge" FROM charge_cte)) RETURNING *',
-					'),',
-					'charge_ref_deal_1_cte AS (',
-					'  INSERT INTO charges_ref ("idBillableItem", "amount", "idCharge") VALUES ($11, $12, (SELECT "idCharge" FROM charge_cte)) RETURNING *',
-					'),',
-					'transaction_cte AS (',
-					'  INSERT INTO transactions ("entityId", "entityType", "amount", "status")',
-					'VALUES ($13, $14, $15, $16)',
-					'RETURNING *',
-					'),',
-					'transaction_ref_0_cte AS (',
-					'  INSERT INTO transactions_ref ("idBillableItem", "amountRef", "idTransaction") VALUES ($17, $18, (SELECT "idTransaction" FROM transaction_cte)) RETURNING *',
-					'),',
+					// The two updates now stand where they were called, ahead of the later inserts.
 					'deal_cte AS (',
 					'  UPDATE deals',
-					'SET "status" = $19',
-					'WHERE "idDeal" = ANY($20)',
+					'SET "status" = $9',
+					'WHERE "idDeal" = ANY($10)',
 					'RETURNING *',
 					'),',
 					'other_expense_cte AS (',
 					'  UPDATE other_expenses',
-					'SET "status" = $21',
-					'WHERE "idExpense" = ANY($22)',
+					'SET "status" = $11',
+					'WHERE "idExpense" = ANY($12)',
 					'RETURNING *',
+					'),',
+					'charge_ref_deal_0_cte AS (',
+					'  INSERT INTO charges_ref ("idBillableItem", "amount", "idCharge") VALUES ($13, $14, (SELECT "idCharge" FROM charge_cte)) RETURNING *',
+					'),',
+					'charge_ref_deal_1_cte AS (',
+					'  INSERT INTO charges_ref ("idBillableItem", "amount", "idCharge") VALUES ($15, $16, (SELECT "idCharge" FROM charge_cte)) RETURNING *',
+					'),',
+					'transaction_cte AS (',
+					'  INSERT INTO transactions ("entityId", "entityType", "amount", "status")',
+					'VALUES ($17, $18, $19, $20)',
+					'RETURNING *',
+					'),',
+					'transaction_ref_0_cte AS (',
+					'  INSERT INTO transactions_ref ("idBillableItem", "amountRef", "idTransaction") VALUES ($21, $22, (SELECT "idTransaction" FROM transaction_cte)) RETURNING *',
 					')',
 					'SELECT * FROM charge_cte;',
 				].join('\n')
@@ -87,6 +88,10 @@ describe('consumer chains', () => {
 				'PENDING',
 				0,
 				'PIX',
+				'PENDING',
+				[10, 11],
+				'PENDING',
+				['oth_1'],
 				'deal_10',
 				1000,
 				'deal_11',
@@ -97,10 +102,6 @@ describe('consumer chains', () => {
 				'PENDING',
 				'deal_10',
 				1000,
-				'PENDING',
-				[10, 11],
-				'PENDING',
-				['oth_1'],
 			]);
 		});
 
@@ -235,14 +236,30 @@ describe('consumer chains', () => {
 			expect(queries[0].values).toEqual(['Home', 'Main St', 7]);
 		});
 
-		it('cannot build the conditional step, whose data is empty', () => {
-			// The builder parses the generated INSERT back, and an insert with no column has nothing to parse.
-			expect(() => insertPlace({...placeInput, isBillingPlace: true})).toThrow(
-				'Unable to parse INSERT statement for reference injection'
+		it('builds the conditional step, whose data is empty', () => {
+			// The reference is the only column of the step.
+			const {queries} = insertPlace({...placeInput, isBillingPlace: true});
+
+			expect(queries[0].sqlText).toBe(
+				[
+					'WITH inserted_place AS (',
+					'  INSERT INTO places ("name", "street")',
+					'VALUES ($1, $2)',
+					'RETURNING *',
+					'),',
+					'inserted_place_contact AS (',
+					'  INSERT INTO places_contacts ("idContact", "idPlace") VALUES ($3, (SELECT "idPlace" FROM inserted_place)) RETURNING *',
+					'),',
+					'inserted_billing AS (',
+					'  INSERT INTO places_contacts_billing ("idPlaceContact") VALUES ((SELECT "idPlaceContact" FROM inserted_place_contact)) RETURNING *',
+					')',
+					'SELECT * FROM inserted_place;',
+				].join('\n')
 			);
+			expect(queries[0].values).toEqual(['Home', 'Main St', 7]);
 		});
 
-		it('loses ON CONFLICT on the referenced step', () => {
+		it('keeps ON CONFLICT on the referenced step', () => {
 			const {queries} = insertPlace({
 				...placeInput,
 				isBillingPlace: false,
@@ -257,7 +274,7 @@ describe('consumer chains', () => {
 					'RETURNING "idPlace"',
 					'),',
 					'inserted_place_contact AS (',
-					'  INSERT INTO places_contacts ("idContact", "idPlace") VALUES ($3, (SELECT "idPlace" FROM inserted_place)) RETURNING *',
+					'  INSERT INTO places_contacts ("idContact", "idPlace") VALUES ($3, (SELECT "idPlace" FROM inserted_place)) ON CONFLICT ("idPlaceContact") DO UPDATE SET "idContact" = EXCLUDED."idContact", "idPlace" = EXCLUDED."idPlace" RETURNING *',
 					')',
 					'SELECT * FROM inserted_place;',
 				].join('\n')

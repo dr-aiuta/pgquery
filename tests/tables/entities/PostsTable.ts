@@ -2,7 +2,7 @@ import {TableDefinition} from '../../../src/types';
 import {TableBase} from '../../../src/core/table-base';
 import {PostsSchema, postsColumns, PostsData} from '../definitions/posts';
 import {QueryParams} from '../../../src/types';
-import {QueryObject, QueryResult} from '../../../src/utils/query-utils';
+import {QueryResult} from '../../../src/utils/query-utils';
 
 const postsTable: TableDefinition<PostsSchema> = {
 	tableName: 'posts',

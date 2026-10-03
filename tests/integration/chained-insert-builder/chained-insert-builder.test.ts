@@ -1,11 +1,4 @@
-import {
-	setupTests,
-	dbpg,
-	usersTable,
-	postsTable,
-	addressesTable,
-	createMockQueryResult,
-} from '../pg-lightquery/test-setup';
+import {setupTests, dbpg, createMockQueryResult} from '../pg-lightquery/test-setup';
 import {createChainedInsert} from '../../../src/utils/chained-insert-builder';
 import {DatabaseOperations} from '../../../src/core/database-operations';
 import {TableDefinition} from '../../../src/types/core-types';
@@ -242,7 +235,8 @@ describe('ChainedInsertBuilder - Reusability Tests', () => {
 
 			const sql = chainedInsert.queries[0].sqlText;
 			expect(sql).toContain('RETURNING "id"');
-			expect(sql).toContain('SELECT id FROM new_user');
+			// A selectFrom column is checked and quoted.
+			expect(sql).toContain('SELECT "id" FROM new_user');
 
 			const result = await chainedInsert.execute();
 			expect(result[0].rows).toEqual([expectedId]);

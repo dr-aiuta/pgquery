@@ -4,7 +4,6 @@ import {DatabaseOperations} from '../../../src/core/database-operations';
 import {TableDefinition} from '../../../src/types/core-types';
 import {UsersData, UsersSchema, usersColumns} from '../../tables/definitions/users';
 import {PostsData, PostsSchema, postsColumns} from '../../tables/definitions/posts';
-import {AddressesData, AddressesSchema, addressesColumns} from '../../tables/definitions/addresses';
 
 // Define test table definitions
 const usersTableDef: TableDefinition<UsersSchema> = {
@@ -17,22 +16,15 @@ const postsTableDef: TableDefinition<PostsSchema> = {
 	schema: {columns: postsColumns},
 };
 
-const addressesTableDef: TableDefinition<AddressesSchema> = {
-	tableName: 'addresses',
-	schema: {columns: addressesColumns},
-};
-
 describe('ChainedInsertBuilder - Update Operations', () => {
 	setupTests();
 
 	let usersDb: DatabaseOperations<UsersSchema>;
 	let postsDb: DatabaseOperations<PostsSchema>;
-	let addressesDb: DatabaseOperations<AddressesSchema>;
 
 	beforeEach(() => {
 		usersDb = new DatabaseOperations(usersTableDef);
 		postsDb = new DatabaseOperations(postsTableDef);
-		addressesDb = new DatabaseOperations(addressesTableDef);
 	});
 
 	describe('Basic Update Functionality', () => {

@@ -1,8 +1,13 @@
-import {QueryObject, AllowedColumns, OnConflict} from './query-utils';
+import PostgresConnection from '../connection/postgres-connection';
+import {QueryObject, AllowedColumns, OnConflict, WriteData} from './query-utils';
 import {SchemaToData} from '../types/core-types';
-import {DatabaseOperations} from '../core/database-operations';
+import {DatabaseOperations, operationsOf} from '../core/database-operations';
+import type {TableBase} from '../core/table-base';
 import {QueryArrayResult} from 'pg';
-import {executeTransactionQuery} from './query-executor';
+import {QueryInputError} from './query-input-error';
+import {sqlExpression} from './sql-expression';
+import {ident, plainName} from '../sql/identifiers';
+import {renumber} from '../sql/placeholders';
 
 /**
  * Options of an insert step. allowedColumns is required: every write names its columns.
@@ -22,61 +27,70 @@ export interface UpdateStepOptions<T> {
 	idUser?: string;
 }
 
+/** A value an earlier step returned: the field of that step, written into a column of this one. */
+export interface StepReference<T> {
+	/** The name of the earlier step */
+	from: string;
+	/** The field of the earlier step to read */
+	field: string;
+	/** The column of this step's table to write */
+	to: keyof T;
+}
+
+/** The table of a step: a table class instance, or the operations object of one. */
+export type StepTable<T extends Record<string, {type: any}>> = DatabaseOperations<T> | TableBase<T>;
+
+/** Looks up a table by the name it was registered under. A table class supplies one to its chains. */
+export interface TableRegistry {
+	get<T extends Record<string, {type: any}>>(name: string): DatabaseOperations<T>;
+}
+
 /**
  * Simplified builder for chained inserts with CTE support
  *
  * This addresses the specific use case of inserting into multiple related tables
  * where each subsequent insert depends on the previous one's generated ID.
  *
+ * Steps run in the order they are called. A step takes a table class instance, or, when the
+ * builder comes from a table class, the name of a registered table.
+ *
  * @example
  * ```typescript
  * const result = new ChainedInsertBuilder()
- *   .insert('inserted_place', placesDb, placeData, {allowedColumns: ['name', 'street'], returnField: '*'})
- *   .insertWithReference('inserted_place_contact', placesContactsDb,
+ *   .insert('inserted_place', placesTable, placeData, {allowedColumns: ['name', 'street'], returnField: '*'})
+ *   .insertWithReference('inserted_place_contact', placesContactsTable,
  *     {idContact},
  *     {from: 'inserted_place', field: 'idPlace', to: 'idPlace'},
  *     {allowedColumns: ['idContact']}
  *   )
- *   .insertWithReferenceIf(isBillingPlace, 'inserted_billing', billingDb,
- *     {note},
+ *   .insertWithReferenceIf(isBillingPlace, 'inserted_billing', billingTable,
+ *     {},
  *     {from: 'inserted_place_contact', field: 'idPlaceContact', to: 'idPlaceContact'},
- *     {allowedColumns: ['note']}
+ *     {allowedColumns: []}
  *   )
  *   .selectFrom('inserted_place')
  *   .build();
  * ```
  */
 export class ChainedInsertBuilder {
-	private insertSteps: InsertStep[] = [];
-	private updateSteps: UpdateStep[] = [];
+	private steps: ChainStep[] = [];
 	private finalSelectStep?: {cteName: string; columns: string};
+
+	/**
+	 * @param registry - The registered tables of a table class. Without it, the name-based methods throw.
+	 */
+	constructor(private registry?: TableRegistry) {}
 
 	/**
 	 * Add a base insert operation (typically the first in the chain)
 	 */
 	public insert<T extends Record<string, {type: any}>>(
 		cteName: string,
-		table: DatabaseOperations<T>,
-		data: Partial<SchemaToData<T>>,
+		table: StepTable<T>,
+		data: WriteData<T>,
 		options: InsertStepOptions<T>
-	): ChainedInsertBuilder {
-		const insertQuery = table.insert({
-			allowedColumns: options?.allowedColumns,
-			options: {
-				data,
-				returnField: options?.returnField || '*',
-				onConflict: options?.onConflict || false,
-				idUser: options?.idUser || 'SERVER',
-			},
-		});
-
-		this.insertSteps.push({
-			cteName,
-			query: insertQuery.query,
-			reference: null,
-		});
-
-		return this;
+	): this {
+		return this.addInsert(cteName, table, data, null, options);
 	}
 
 	/**
@@ -84,38 +98,12 @@ export class ChainedInsertBuilder {
 	 */
 	public insertWithReference<T extends Record<string, {type: any}>>(
 		cteName: string,
-		table: DatabaseOperations<T>,
-		data: Partial<SchemaToData<T>>,
-		reference: {from: string; field: string; to: keyof T},
+		table: StepTable<T>,
+		data: WriteData<T>,
+		reference: StepReference<T>,
 		options: InsertStepOptions<T>
-	): ChainedInsertBuilder {
-		// Create the insert query without the referenced field
-		const dataWithoutRef = {...data};
-		delete dataWithoutRef[reference.to];
-
-		const insertQuery = table.insert({
-			allowedColumns: options?.allowedColumns,
-			options: {
-				data: dataWithoutRef,
-				returnField: options?.returnField || '*',
-				onConflict: options?.onConflict || false,
-				idUser: options?.idUser || 'SERVER',
-			},
-		});
-
-		this.insertSteps.push({
-			cteName,
-			query: insertQuery.query,
-			reference: reference
-				? {
-						from: reference.from,
-						field: reference.field,
-						to: reference.to as string,
-				  }
-				: null,
-		});
-
-		return this;
+	): this {
+		return this.addInsert(cteName, table, data, reference, options);
 	}
 
 	/**
@@ -124,11 +112,11 @@ export class ChainedInsertBuilder {
 	public insertWithReferenceIf<T extends Record<string, {type: any}>>(
 		condition: boolean,
 		cteName: string,
-		table: DatabaseOperations<T>,
-		data: Partial<SchemaToData<T>>,
-		reference: {from: string; field: string; to: keyof T},
+		table: StepTable<T>,
+		data: WriteData<T>,
+		reference: StepReference<T>,
 		options: InsertStepOptions<T>
-	): ChainedInsertBuilder {
+	): this {
 		if (condition) {
 			return this.insertWithReference(cteName, table, data, reference, options);
 		}
@@ -140,28 +128,12 @@ export class ChainedInsertBuilder {
 	 */
 	public update<T extends Record<string, {type: any}>>(
 		cteName: string,
-		table: DatabaseOperations<T>,
-		data: Partial<SchemaToData<T>>,
+		table: StepTable<T>,
+		data: WriteData<T>,
 		where: Partial<SchemaToData<T>>,
 		options: UpdateStepOptions<T>
-	): ChainedInsertBuilder {
-		const updateQuery = table.update({
-			allowedColumns: options?.allowedColumns,
-			options: {
-				data,
-				where,
-				returnField: options?.returnField || '*',
-				idUser: options?.idUser || 'SERVER',
-			},
-		});
-
-		this.updateSteps.push({
-			cteName,
-			query: updateQuery.query,
-			reference: null,
-		});
-
-		return this;
+	): this {
+		return this.addUpdate(cteName, table, data, where, null, options);
 	}
 
 	/**
@@ -169,41 +141,13 @@ export class ChainedInsertBuilder {
 	 */
 	public updateWithReference<T extends Record<string, {type: any}>>(
 		cteName: string,
-		table: DatabaseOperations<T>,
-		data: Partial<SchemaToData<T>>,
+		table: StepTable<T>,
+		data: WriteData<T>,
 		where: Partial<SchemaToData<T>>,
-		reference: {from: string; field: string; to: keyof T},
+		reference: StepReference<T>,
 		options: UpdateStepOptions<T>
-	): ChainedInsertBuilder {
-		// Create the update query with the referenced field
-		const dataWithRef = {
-			...data,
-			// The reference will be injected later
-		};
-
-		const updateQuery = table.update({
-			allowedColumns: options?.allowedColumns,
-			options: {
-				data: dataWithRef,
-				where,
-				returnField: options?.returnField || '*',
-				idUser: options?.idUser || 'SERVER',
-			},
-		});
-
-		this.updateSteps.push({
-			cteName,
-			query: updateQuery.query,
-			reference: reference
-				? {
-						from: reference.from,
-						field: reference.field,
-						to: reference.to as string,
-				  }
-				: null,
-		});
-
-		return this;
+	): this {
+		return this.addUpdate(cteName, table, data, where, reference, options);
 	}
 
 	/**
@@ -212,11 +156,11 @@ export class ChainedInsertBuilder {
 	public updateIf<T extends Record<string, {type: any}>>(
 		condition: boolean,
 		cteName: string,
-		table: DatabaseOperations<T>,
-		data: Partial<SchemaToData<T>>,
+		table: StepTable<T>,
+		data: WriteData<T>,
 		where: Partial<SchemaToData<T>>,
 		options: UpdateStepOptions<T>
-	): ChainedInsertBuilder {
+	): this {
 		if (condition) {
 			return this.update(cteName, table, data, where, options);
 		}
@@ -229,12 +173,12 @@ export class ChainedInsertBuilder {
 	public updateWithReferenceIf<T extends Record<string, {type: any}>>(
 		condition: boolean,
 		cteName: string,
-		table: DatabaseOperations<T>,
-		data: Partial<SchemaToData<T>>,
+		table: StepTable<T>,
+		data: WriteData<T>,
 		where: Partial<SchemaToData<T>>,
-		reference: {from: string; field: string; to: keyof T},
+		reference: StepReference<T>,
 		options: UpdateStepOptions<T>
-	): ChainedInsertBuilder {
+	): this {
 		if (condition) {
 			return this.updateWithReference(cteName, table, data, where, reference, options);
 		}
@@ -242,10 +186,104 @@ export class ChainedInsertBuilder {
 	}
 
 	/**
-	 * Set which CTE to select from in the final result
+	 * Insert using a registered related table name instead of a table object
 	 */
-	public selectFrom(cteName: string, columns: string = '*'): ChainedInsertBuilder {
-		this.finalSelectStep = {cteName, columns};
+	public insertIntoTable<T extends Record<string, {type: any}>>(
+		cteName: string,
+		tableName: string,
+		data: WriteData<T>,
+		options: InsertStepOptions<T>
+	): this {
+		return this.insert(cteName, this.registered<T>(tableName), data, options);
+	}
+
+	/**
+	 * Insert with reference using registered table name
+	 */
+	public insertIntoTableWithReference<T extends Record<string, {type: any}>>(
+		cteName: string,
+		tableName: string,
+		data: WriteData<T>,
+		reference: StepReference<T>,
+		options: InsertStepOptions<T>
+	): this {
+		return this.insertWithReference(cteName, this.registered<T>(tableName), data, reference, options);
+	}
+
+	/**
+	 * Conditional insert with reference using registered table name
+	 */
+	public insertIntoTableWithReferenceIf<T extends Record<string, {type: any}>>(
+		condition: boolean,
+		cteName: string,
+		tableName: string,
+		data: WriteData<T>,
+		reference: StepReference<T>,
+		options: InsertStepOptions<T>
+	): this {
+		if (condition) {
+			return this.insertIntoTableWithReference(cteName, tableName, data, reference, options);
+		}
+		return this;
+	}
+
+	/**
+	 * Update a table using a registered table name
+	 */
+	public updateTable<T extends Record<string, {type: any}>>(
+		cteName: string,
+		tableName: string,
+		data: WriteData<T>,
+		where: Partial<SchemaToData<T>>,
+		options: UpdateStepOptions<T>
+	): this {
+		return this.update(cteName, this.registered<T>(tableName), data, where, options);
+	}
+
+	/**
+	 * Update a table with reference to a previous CTE using registered table name
+	 */
+	public updateTableWithReference<T extends Record<string, {type: any}>>(
+		cteName: string,
+		tableName: string,
+		data: WriteData<T>,
+		where: Partial<SchemaToData<T>>,
+		reference: StepReference<T>,
+		options: UpdateStepOptions<T>
+	): this {
+		return this.updateWithReference(cteName, this.registered<T>(tableName), data, where, reference, options);
+	}
+
+	/**
+	 * Conditionally update a table using registered table name
+	 */
+	public updateTableIf<T extends Record<string, {type: any}>>(
+		condition: boolean,
+		cteName: string,
+		tableName: string,
+		data: WriteData<T>,
+		where: Partial<SchemaToData<T>>,
+		options: UpdateStepOptions<T>
+	): this {
+		if (condition) {
+			return this.updateTable(cteName, tableName, data, where, options);
+		}
+		return this;
+	}
+
+	/**
+	 * Set which CTE to select from in the final result
+	 *
+	 * @param columns - '*', one column name, or an array of column names. An expression is not accepted.
+	 */
+	public selectFrom(cteName: string, columns: string | string[] = '*'): this {
+		const names = Array.isArray(columns) ? columns : [columns];
+		const columnList =
+			columns === '*' ? '*' : names.map((column) => ident(column, 'selectFrom column')).join(', ');
+		if (columnList === '') {
+			throw new QueryInputError(`Invalid selectFrom columns. Expected '*', a column name or an array of column names.`);
+		}
+		this.finalSelectStep = {cteName: plainName(cteName, 'step name'), columns: columnList};
 		return this;
 	}
 
@@ -256,7 +294,7 @@ export class ChainedInsertBuilder {
 		queries: QueryObject[];
 		execute: () => Promise<QueryArrayResult<any>[]>;
 	} {
-		if (this.insertSteps.length === 0 && this.updateSteps.length === 0) {
+		if (this.steps.length === 0) {
 			throw new Error('No insert or update steps defined');
 		}
 
@@ -265,187 +303,144 @@ export class ChainedInsertBuilder {
 		return {
 			queries: [combinedQuery],
 			execute: async (): Promise<QueryArrayResult<any>[]> => {
-				return executeTransactionQuery([combinedQuery]);
+				// One client runs BEGIN, the statement and COMMIT.
+				const results = await PostgresConnection.transaction([combinedQuery]);
+				return results as unknown as QueryArrayResult<any>[];
 			},
 		};
 	}
 
+	/** The registered table behind a name. Only a builder that came from a table class has a registry. */
+	private registered<T extends Record<string, {type: any}>>(tableName: string): DatabaseOperations<T> {
+		if (!this.registry) {
+			throw new QueryInputError(
+				`Cannot look up the table '${tableName}': this chain has no registered tables. ` +
+					'Create the chain with createChainedInsert() of a table class, or pass a table object.'
+			);
+		}
+		return this.registry.get<T>(tableName);
+	}
+
 	/**
-	 * Build the complete CTE query
+	 * The reference as ordinary data: the column gets a subquery on the earlier step.
+	 * The column is always written, so it is added to the allowed columns of the step.
+	 */
+	private withReference<T extends Record<string, {type: any}>>(
+		table: DatabaseOperations<T>,
+		data: WriteData<T>,
+		reference: StepReference<T> | null,
+		allowedColumns: AllowedColumns<T>
+	): {data: WriteData<T>; allowedColumns: AllowedColumns<T>} {
+		if (!reference) {
+			return {data, allowedColumns};
+		}
+		const to = reference.to as string;
+		if (typeof to !== 'string' || !Object.prototype.hasOwnProperty.call(table.schema.columns, to)) {
+			throw new QueryInputError(`Invalid reference: ${String(to)} is not a column of ${table.tableName}.`);
+		}
+		const value = sqlExpression(
+			`(SELECT ${ident(reference.field, 'reference field')} FROM ${plainName(reference.from, 'step name')})`
+		);
+		// The referenced value replaces whatever the data held for that column.
+		const rest: Record<string, unknown> = {...data};
+		delete rest[to];
+		const columns =
+			Array.isArray(allowedColumns) && !allowedColumns.includes(reference.to)
+				? [...allowedColumns, reference.to]
+				: allowedColumns;
+		return {data: {...rest, [to]: value} as WriteData<T>, allowedColumns: columns};
+	}
+
+	private addInsert<T extends Record<string, {type: any}>>(
+		cteName: string,
+		table: StepTable<T>,
+		data: WriteData<T>,
+		reference: StepReference<T> | null,
+		options: InsertStepOptions<T>
+	): this {
+		const name = plainName(cteName, 'step name');
+		const operations = operationsOf<T>(table);
+		const step = this.withReference(operations, data, reference, options?.allowedColumns);
+
+		const insertQuery = operations.insert(
+			{
+				allowedColumns: step.allowedColumns,
+				options: {
+					data: step.data,
+					returnField: options?.returnField || '*',
+					onConflict: options?.onConflict || false,
+					idUser: options?.idUser || 'SERVER',
+				},
+			},
+			// A referenced step has always been written on one line. Its SQL text is kept.
+			{compact: reference !== null}
+		);
+
+		this.steps.push({cteName: name, kind: 'insert', query: insertQuery.query});
+		return this;
+	}
+
+	private addUpdate<T extends Record<string, {type: any}>>(
+		cteName: string,
+		table: StepTable<T>,
+		data: WriteData<T>,
+		where: Partial<SchemaToData<T>>,
+		reference: StepReference<T> | null,
+		options: UpdateStepOptions<T>
+	): this {
+		const name = plainName(cteName, 'step name');
+		const operations = operationsOf<T>(table);
+		const step = this.withReference(operations, data, reference, options?.allowedColumns);
+
+		const updateQuery = operations.update(
+			{
+				allowedColumns: step.allowedColumns,
+				options: {
+					data: step.data,
+					where,
+					returnField: options?.returnField || '*',
+					idUser: options?.idUser || 'SERVER',
+				},
+			},
+			{compact: reference !== null}
+		);
+
+		this.steps.push({cteName: name, kind: 'update', query: updateQuery.query});
+		return this;
+	}
+
+	/**
+	 * Build the complete CTE query. Steps are written in the order they were called.
 	 */
 	private buildCTEQuery(): QueryObject {
 		const cteDefinitions: string[] = [];
 		const allValues: any[] = [];
-		let parameterOffset = 0;
 
-		// Process each insert step
-		for (const step of this.insertSteps) {
-			const processedStep = this.processInsertStep(step, parameterOffset);
-			cteDefinitions.push(`${step.cteName} AS (\n  ${processedStep.sql}\n)`);
-			allValues.push(...processedStep.values);
-			parameterOffset += processedStep.values.length;
+		for (const step of this.steps) {
+			// Each step was built on its own, with placeholders from $1. They continue across the chain.
+			const sql = renumber(step.query.sqlText.trim().replace(/;$/, ''), allValues.length);
+			cteDefinitions.push(`${step.cteName} AS (\n  ${sql}\n)`);
+			allValues.push(...step.query.values);
 		}
 
-		// Process each update step
-		for (const step of this.updateSteps) {
-			const processedStep = this.processUpdateStep(step, parameterOffset);
-			cteDefinitions.push(`${step.cteName} AS (\n  ${processedStep.sql}\n)`);
-			allValues.push(...processedStep.values);
-			parameterOffset += processedStep.values.length;
-		}
-
-		// Build the final SQL
-		let sql = `WITH ${cteDefinitions.join(',\n')}`;
-
-		// Add final SELECT
-		const defaultCteName = this.insertSteps.length > 0 ? this.insertSteps[0].cteName : this.updateSteps[0].cteName;
-		const selectStep = this.finalSelectStep || {cteName: defaultCteName, columns: '*'};
-		sql += `\nSELECT ${selectStep.columns} FROM ${selectStep.cteName};`;
+		// Without selectFrom, the final SELECT reads the first insert, or the first step when there is none.
+		const defaultStep = this.steps.find((step) => step.kind === 'insert') ?? this.steps[0];
+		const selectStep = this.finalSelectStep || {cteName: defaultStep.cteName, columns: '*'};
 
 		return {
-			sqlText: sql,
+			sqlText: `WITH ${cteDefinitions.join(',\n')}\nSELECT ${selectStep.columns} FROM ${selectStep.cteName};`,
 			values: allValues,
 		};
 	}
-
-	/**
-	 * Process a single insert step, handling parameter offsets and references
-	 */
-	private processInsertStep(step: InsertStep, offset: number): {sql: string; values: any[]} {
-		let {sqlText, values} = step.query;
-
-		// Remove trailing semicolon
-		sqlText = sqlText.trim().replace(/;$/, '');
-
-		// Adjust parameter numbers for offset
-		if (offset > 0) {
-			sqlText = sqlText.replace(/\$(\d+)/g, (match, num) => {
-				const newNum = parseInt(num, 10) + offset;
-				return `$${newNum}`;
-			});
-		}
-
-		// Handle reference injection
-		if (step.reference) {
-			const {modifiedSQL, newValues} = this.injectReference(sqlText, values, step.reference);
-			sqlText = modifiedSQL;
-			values = newValues;
-		}
-
-		return {sql: sqlText, values};
-	}
-
-	/**
-	 * Process a single update step, handling parameter offsets and references
-	 */
-	private processUpdateStep(step: UpdateStep, offset: number): {sql: string; values: any[]} {
-		let {sqlText, values} = step.query;
-
-		// Remove trailing semicolon
-		sqlText = sqlText.trim().replace(/;$/, '');
-
-		// Adjust parameter numbers for offset
-		if (offset > 0) {
-			sqlText = sqlText.replace(/\$(\d+)/g, (match, num) => {
-				const newNum = parseInt(num, 10) + offset;
-				return `$${newNum}`;
-			});
-		}
-
-		// Handle reference injection for updates
-		if (step.reference) {
-			const {modifiedSQL, newValues} = this.injectUpdateReference(sqlText, values, step.reference);
-			sqlText = modifiedSQL;
-			values = newValues;
-		}
-
-		return {sql: sqlText, values};
-	}
-
-	/**
-	 * Inject a CTE reference into the UPDATE statement
-	 */
-	private injectUpdateReference(
-		sql: string,
-		values: any[],
-		reference: {from: string; field: string; to: string}
-	): {modifiedSQL: string; newValues: any[]} {
-		// Parse the UPDATE statement to add the referenced field
-		const updateMatch = sql.match(/UPDATE\s+(\w+)\s+SET\s+(.+?)\s+WHERE/i);
-
-		if (!updateMatch) {
-			throw new Error('Unable to parse UPDATE statement for reference injection');
-		}
-
-		const [fullMatch, tableName, setPart] = updateMatch;
-
-		// Add the referenced column to the SET clause
-		const cteReference = `(SELECT "${reference.field}" FROM ${reference.from})`;
-		const newSetPart = `${setPart}, "${reference.to}" = ${cteReference}`;
-
-		// Reconstruct the UPDATE with WHERE and RETURNING clauses
-		const remainingSQL = sql.substring(fullMatch.length);
-		const modifiedSQL = `UPDATE ${tableName} SET ${newSetPart} WHERE${remainingSQL}`;
-
-		return {
-			modifiedSQL,
-			newValues: values, // Values array stays the same since we're using a subquery
-		};
-	}
-
-	/**
-	 * Inject a CTE reference into the INSERT statement
-	 */
-	private injectReference(
-		sql: string,
-		values: any[],
-		reference: {from: string; field: string; to: string}
-	): {modifiedSQL: string; newValues: any[]} {
-		// Parse the INSERT statement to add the referenced field
-		const insertMatch = sql.match(/INSERT INTO (\w+) \(([^)]+)\)\s*VALUES \(([^)]+)\)/i);
-
-		if (!insertMatch) {
-			throw new Error('Unable to parse INSERT statement for reference injection');
-		}
-
-		const [, tableName, columnsPart, valuesPart] = insertMatch;
-
-		// Add the referenced column
-		const columns = columnsPart + `, "${reference.to}"`;
-
-		// Add the CTE reference to values
-		const cteReference = `(SELECT "${reference.field}" FROM ${reference.from})`;
-		const newValues = valuesPart + `, ${cteReference}`;
-
-		// Reconstruct the INSERT with RETURNING clause
-		const returningMatch = sql.match(/RETURNING (.+)$/i);
-		const returningClause = returningMatch ? ` RETURNING ${returningMatch[1]}` : '';
-
-		const modifiedSQL = `INSERT INTO ${tableName} (${columns}) VALUES (${newValues})${returningClause}`;
-
-		return {
-			modifiedSQL,
-			newValues: values, // Values array stays the same since we're using a subquery
-		};
-	}
 }
 
 /**
- * Represents a single insert step in the chain
+ * One step of the chain: an insert or an update, already built for its table
  */
-interface InsertStep {
+interface ChainStep {
 	cteName: string;
+	kind: 'insert' | 'update';
 	query: QueryObject;
-	reference: {from: string; field: string; to: string} | null;
-}
-
-/**
- * Represents a single update step in the chain
- */
-interface UpdateStep {
-	cteName: string;
-	query: QueryObject;
-	reference: {from: string; field: string; to: string} | null;
 }
 
 /**

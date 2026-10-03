@@ -2,6 +2,13 @@ import {SchemaToData} from '../types/core-types';
 import {ColumnDefinition} from '../types/core-types';
 import {QueryParams} from '../types/core-types';
 import {UniqueArray} from '../types/utility-types';
+import {isSqlExpression, SqlExpression} from './sql-expression';
+
+/** A column whose value is an SQL expression. It is written into the SQL text and is not bound. */
+export interface SqlAssignment {
+	column: string;
+	sql: string;
+}
 
 /**
  * Extracts column names and values for insert operations and prepares update assignments for conflict handling.
@@ -13,12 +20,13 @@ import {UniqueArray} from '../types/utility-types';
  *   columns, plus the conflict target columns when the upsert names its own target.
  *
  * @returns An object containing:
- *   - columnsNamesForInsert: Column names to be included in the insert operation.
+ *   - columnsNamesForInsert: Column names to be included in the insert operation, for bound values.
  *   - columnValuesForInsert: Values to be inserted corresponding to the column names.
+ *   - expressionsForInsert: Columns whose value is an SQL expression. They follow the bound columns.
  *   - assignmentsForConflictUpdate: Update assignments to handle conflicts for non-primary key columns.
  */
 export function extractInsertAndUpdateAssignmentParts<T extends Record<string, ColumnDefinition>>(
-	dataToBeInserted: Partial<SchemaToData<T>>,
+	dataToBeInserted: WriteData<T>,
 	allowedColumns: UniqueArray<(keyof T)[]>,
 	tableColumns: {[K in keyof T]: ColumnDefinition},
 	primaryKeyColumns: UniqueArray<(keyof T)[]>,
@@ -26,19 +34,26 @@ export function extractInsertAndUpdateAssignmentParts<T extends Record<string, C
 ): {
 	columnsNamesForInsert: string[];
 	columnValuesForInsert: any[];
+	expressionsForInsert: SqlAssignment[];
 	assignmentsForConflictUpdate: string[];
 } {
 	const columnsNamesForInsert: string[] = [];
 	const columnValuesForInsert: any[] = [];
-	const assignmentsForConflictUpdate: string[] = [];
+	const expressionsForInsert: SqlAssignment[] = [];
+	const boundConflictAssignments: string[] = [];
+	const expressionConflictAssignments: string[] = [];
 
 	Object.entries(dataToBeInserted).forEach(([column, value]) => {
 		// Only undefined is skipped. null is a value: it writes NULL.
 		if (allowedColumns.includes(column as keyof T) && value !== undefined) {
-			columnsNamesForInsert.push(column);
-			columnValuesForInsert.push(value);
-			if (!primaryKeyColumns.includes(column as keyof T)) {
-				assignmentsForConflictUpdate.push(`"${column}" = EXCLUDED."${column}"`);
+			const isKey = primaryKeyColumns.includes(column as keyof T);
+			if (isSqlExpression(value)) {
+				expressionsForInsert.push({column, sql: value.sql});
+				if (!isKey) expressionConflictAssignments.push(`"${column}" = EXCLUDED."${column}"`);
+			} else {
+				columnsNamesForInsert.push(column);
+				columnValuesForInsert.push(value);
+				if (!isKey) boundConflictAssignments.push(`"${column}" = EXCLUDED."${column}"`);
 			}
 		}
 	});
@@ -48,7 +63,12 @@ export function extractInsertAndUpdateAssignmentParts<T extends Record<string, C
 		columnValuesForInsert.push(idUser);
 	}
 
-	return {columnsNamesForInsert, columnValuesForInsert, assignmentsForConflictUpdate};
+	return {
+		columnsNamesForInsert,
+		columnValuesForInsert,
+		expressionsForInsert,
+		assignmentsForConflictUpdate: [...boundConflictAssignments, ...expressionConflictAssignments],
+	};
 }
 
 /**
@@ -60,26 +80,33 @@ export function extractInsertAndUpdateAssignmentParts<T extends Record<string, C
  * @param idUser - User ID for tracking changes.
  *
  * @returns An object containing:
- *   - columnsNamesForUpdate: Column names to be included in the update operation.
+ *   - columnsNamesForUpdate: Column names to be included in the update operation, for bound values.
  *   - columnValuesForUpdate: Values to be updated corresponding to the column names.
+ *   - expressionsForUpdate: Columns whose value is an SQL expression. They follow the bound columns.
  */
 export function extractUpdateParts<T extends Record<string, ColumnDefinition>>(
-	dataToBeUpdated: Partial<SchemaToData<T>>,
+	dataToBeUpdated: WriteData<T>,
 	allowedColumns: UniqueArray<(keyof T)[]>,
 	tableColumns: {[K in keyof T]: ColumnDefinition},
 	idUser: string
 ): {
 	columnsNamesForUpdate: string[];
 	columnValuesForUpdate: any[];
+	expressionsForUpdate: SqlAssignment[];
 } {
 	const columnsNamesForUpdate: string[] = [];
 	const columnValuesForUpdate: any[] = [];
+	const expressionsForUpdate: SqlAssignment[] = [];
 
 	Object.entries(dataToBeUpdated).forEach(([column, value]) => {
 		// Only undefined is skipped. null is a value: it writes NULL.
 		if (allowedColumns.includes(column as keyof T) && value !== undefined) {
-			columnsNamesForUpdate.push(column);
-			columnValuesForUpdate.push(value);
+			if (isSqlExpression(value)) {
+				expressionsForUpdate.push({column, sql: value.sql});
+			} else {
+				columnsNamesForUpdate.push(column);
+				columnValuesForUpdate.push(value);
+			}
 		}
 	});
 
@@ -89,34 +116,13 @@ export function extractUpdateParts<T extends Record<string, ColumnDefinition>>(
 		columnValuesForUpdate.push(idUser);
 	}
 
-	return {columnsNamesForUpdate, columnValuesForUpdate};
+	return {columnsNamesForUpdate, columnValuesForUpdate, expressionsForUpdate};
 }
 
 export type QueryObject = {
 	sqlText: string;
 	values: any[];
 };
-
-export function adjustPlaceholders(sql: string, offset: number): string {
-	return sql.replace(/\$(\d+)/g, (_, num) => {
-		const newNum = parseInt(num, 10) + offset;
-		return `$${newNum}`;
-	});
-}
-
-export function findMaxPlaceholder(sqlText: string): number {
-	// Find the highest placeholder number in predefinedSQL.sqlText
-	const placeholderRegex = /\$(\d+)/g;
-	let match;
-	let maxPlaceholder = 0;
-	while ((match = placeholderRegex.exec(sqlText)) !== null) {
-		const placeholderNumber = parseInt(match[1], 10);
-		if (placeholderNumber > maxPlaceholder) {
-			maxPlaceholder = placeholderNumber;
-		}
-	}
-	return maxPlaceholder;
-}
 
 // New standardized interfaces
 interface QueryResult<T> {
@@ -144,11 +150,19 @@ interface BaseOptions<T extends Record<string, ColumnDefinition>> {
 /** update takes no predefinedSQL: PostgreSQL rejects two commands in one prepared statement. */
 type UpdateBaseOptions<T extends Record<string, ColumnDefinition>> = Omit<BaseOptions<T>, 'predefinedSQL'>;
 
+/**
+ * The data of an insert or an update. A value is the column's type, or sqlExpression(...).
+ * An expression is written into the SQL text and is not bound.
+ */
+type WriteData<T extends Record<string, ColumnDefinition>> = {
+	[K in keyof SchemaToData<T>]?: SchemaToData<T>[K] | SqlExpression;
+};
+
 /** true targets the primary key. {target} names the columns of another unique constraint. */
 type OnConflict<T> = boolean | {target: (keyof T)[]};
 
 interface InsertOptions<T extends Record<string, ColumnDefinition>> {
-	data: Partial<SchemaToData<T>>;
+	data: WriteData<T>;
 	returnField?: keyof T | (keyof T)[] | '*';
 	onConflict?: OnConflict<T>;
 	idUser?: string;
@@ -158,13 +172,14 @@ interface SelectOptions<T extends Record<string, ColumnDefinition>> {
 	where?: QueryParams<T>;
 	/** Drop where keys whose column is not in allowedColumns, where the default is to throw. */
 	ignoreUnknownKeys?: boolean;
+	/** @deprecated The option was never used. It is ignored. */
 	includeMetadata?: boolean;
 	schemaColumns?: any;
 	columnsToReturn?: (keyof T)[] | '*';
 }
 
 interface UpdateOptions<T extends Record<string, ColumnDefinition>> {
-	data: Partial<SchemaToData<T>>;
+	data: WriteData<T>;
 	where: QueryParams<T>; // Required for safety unless allowUpdateAll is true
 	returnField?: keyof T | (keyof T)[] | '*';
 	idUser?: string;
@@ -184,6 +199,7 @@ interface CustomSelectOptions<T extends Record<string, any>> {
 	where?: QueryParams<T>;
 	/** Drop where keys whose column is not in allowedColumns, where the default is to throw. */
 	ignoreUnknownKeys?: boolean;
+	/** @deprecated The option was never used. It is ignored. */
 	includeMetadata?: boolean;
 	schemaColumns?: any;
 	columnsToReturn?: (keyof T)[] | '*';
@@ -195,6 +211,7 @@ export type {
 	TransactionResult,
 	AllowedColumns,
 	OnConflict,
+	WriteData,
 	BaseOptions,
 	UpdateBaseOptions,
 	InsertOptions,
@@ -206,5 +223,4 @@ export type {
 
 export default {
 	extractInsertAndUpdateAssignmentParts,
-	adjustPlaceholders,
 };

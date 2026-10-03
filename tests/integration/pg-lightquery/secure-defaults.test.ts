@@ -310,7 +310,11 @@ describe('Secure defaults (0.5.0)', () => {
 		});
 
 		it('keeps a trailing line comment of the predefined SQL from swallowing the filter', () => {
-			const query = custom({allowedColumns: ['id'], options: {where: {id: 1}}}, 'SELECT id FROM users -- all of them');
+			const query = usersDb.selectWithCustomSchema({
+				allowedColumns: ['id'],
+				predefinedSQL: {sqlText: 'SELECT id FROM users -- all of them'},
+				options: {where: {id: 1}},
+			}).query;
 
 			expect(query.sqlText).toBe('SELECT * FROM (\nSELECT id FROM users -- all of them\n) AS q WHERE "id" = $1');
 		});

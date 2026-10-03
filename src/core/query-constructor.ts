@@ -1,10 +1,7 @@
 import handleSQLQueryParts from '../utils/helpers';
 import {QueryInputError} from '../utils/query-input-error';
+import {isIdentifier} from '../sql/identifiers';
 
-// Identifiers accepted when the allowed-columns list is the '*' wildcard.
-// Every identifier is emitted inside double quotes, so a name that cannot contain a
-// double quote (or anything else outside this pattern) cannot break out of them.
-export const SAFE_IDENTIFIER = /^[A-Za-z_][A-Za-z0-9_]*$/;
 
 // The suffixes a where key may carry, as in 'name.like'. Any other suffix throws.
 const SUPPORTED_OPERATORS = ['not', 'startDate', 'endDate', 'like', 'in', 'orderBy', 'null'];
@@ -20,7 +17,9 @@ export interface QueryConstructorOptions {
 function fieldProblem(field: string, allowedColumns: string[]): string | null {
 	if (allowedColumns.includes(`"${field}"`)) return null;
 	if (!allowedColumns.includes('*')) return `Unknown column in query parameters: ${field}`;
-	if (!SAFE_IDENTIFIER.test(field)) return `Invalid column name in query parameters: ${field}`;
+	// Under the '*' wildcard there is no list to check against, so the name must be a plain identifier.
+	// It is emitted inside double quotes, and a plain identifier cannot break out of them.
+	if (!isIdentifier(field)) return `Invalid column name in query parameters: ${field}`;
 	return null;
 }
 

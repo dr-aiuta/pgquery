@@ -1,42 +1,19 @@
 import {ColumnDefinition} from '../types/core-types';
 import {UniqueArray} from '../types/utility-types';
 import {QueryInputError} from './query-input-error';
+import {SqlAssignment} from './query-utils';
+import {renumber} from '../sql/placeholders';
 
-// Function to construct a SQL condition based on key, index, alias, and rangeField
-const constructCondition = (key: string, idx: number, alias: string, rangeField?: string): string => {
-	const and = idx === 0 ? '' : 'AND';
-	const field = key.split('.')[0];
-	const operator = key.split('.')[1] === 'not' ? '<>' : '=';
-	const queryValue = `$${idx + 1}`;
-
-	if (field === 'startDate' && rangeField) {
-		return ` ${and} ${rangeField} >= ${queryValue}`;
-	} else if (field === 'endDate' && rangeField) {
-		return ` ${and} ${rangeField} <= ${queryValue}`;
-	} else {
-		return ` ${and} ${alias}"${field}" ${operator} ${queryValue}`;
-	}
-};
-
-// Function to build a WHERE clause for SQL queries
-const buildWhere = (urlQueryKeysArray: string[], alias: string, rangeField?: string): string => {
-	return 'WHERE' + urlQueryKeysArray.map((key, idx) => constructCondition(key, idx, alias, rangeField)).join('');
-};
-
-// Function to build a NULL condition in a SQL query
-const buildNull = (urlQueryKeysArray: string[], nullKeysArray: string[], alias: string): string => {
-	return nullKeysArray
-		.map((val, idx) => {
-			const and = idx === 0 && urlQueryKeysArray.length === 0 ? '' : 'AND';
-			return ` ${and} ${alias}"${val}" IS NULL`;
-		})
-		.join('');
-};
-
-// Function to build an ORDER BY clause for SQL queries
-const buildOrderBy = (orderByValuesArray: string[], alias: string): string => {
-	return ` ORDER BY ${alias}"${orderByValuesArray[0]}"`; // Assuming one orderBy field for simplicity
-};
+/** How a statement is laid out. Both layouts hold the same SQL. */
+export interface WriteLayout {
+	/** Columns whose value is an SQL expression. They follow the bound columns. */
+	expressions?: SqlAssignment[];
+	/**
+	 * Writes the statement on one line. A chained step that references an earlier step
+	 * has always been written this way, and its SQL text is kept as it was.
+	 */
+	compact?: boolean;
+}
 
 /**
  * Builds the RETURNING clause for an insert or an update.
@@ -77,7 +54,7 @@ export function returningClause(returnField: unknown, columns: Record<string, un
  * Constructs an SQL INSERT query with optional conflict resolution and returning clause.
  *
  * @param tableName - The name of the table into which the data will be inserted.
- * @param columnsForInsert - Array of column names to be inserted.
+ * @param columnsForInsert - Array of column names to be inserted with bound values.
  * @param valuesForInsert - Array of values corresponding to the columns to be inserted.
  * @param onConflict - A flag indicating whether to include an ON CONFLICT clause.
  * @param primaryKeyColumns - The conflict target of the ON CONFLICT clause: the primary key column(s),
@@ -85,6 +62,7 @@ export function returningClause(returnField: unknown, columns: Record<string, un
  * @param conflictUpdateAssignments - The SQL assignments for updating columns on conflict.
  * @param returnField - The field(s) to be returned after the insert operation.
  * @param schemaColumns - The columns of the table definition, used to validate returnField.
+ * @param layout - Columns with an SQL expression as value, and the one-line layout.
  *
  * @returns Object The constructed SQL INSERT query string and an array of values.
  */
@@ -96,18 +74,24 @@ export function buildInsertSqlQuery<T extends Record<string, ColumnDefinition>>(
 	primaryKeyColumns: UniqueArray<(keyof T)[]>,
 	conflictUpdateAssignments: string[],
 	returnField: keyof T | (keyof T)[] | '*' | undefined,
-	schemaColumns: Record<string, unknown>
+	schemaColumns: Record<string, unknown>,
+	layout: WriteLayout = {}
 ): {sqlText: string; values: any[]} {
-	// Interpolating the values as $1, $2, $3, etc.
-	const placeholders = valuesForInsert.map((_, index) => `$${index + 1}`).join(', ');
+	const expressions = layout.expressions ?? [];
+	const columns = [...columnsForInsert.map(String), ...expressions.map((expression) => expression.column)];
+	// Bound values become $1, $2, $3, etc. An expression is written as it is.
+	const valueList = [
+		...valuesForInsert.map((_, index) => `$${index + 1}`),
+		...expressions.map((expression) => expression.sql),
+	].join(', ');
 
 	const returning = returningClause(returnField, schemaColumns);
+	const lineBreak = layout.compact ? ' ' : '\n';
 
 	// With no column to insert, Postgres needs DEFAULT VALUES. An empty column list is a syntax error.
 	const insertPart =
-		columnsForInsert.length > 0
-			? `INSERT INTO ${tableName} ("${columnsForInsert.join('", "')}")
-VALUES (${placeholders})`
+		columns.length > 0
+			? `INSERT INTO ${tableName} ("${columns.join('", "')}")${lineBreak}VALUES (${valueList})`
 			: `INSERT INTO ${tableName} DEFAULT VALUES`;
 
 	// Each key column is quoted on its own. With nothing to update, DO UPDATE SET would be empty.
@@ -120,14 +104,12 @@ VALUES (${placeholders})`
 				: ` ON CONFLICT ${conflictTarget} DO NOTHING`;
 	}
 
-	// Building the SQL text
-	const sqlText = `
-${insertPart}${conflictPart}
-${returning};
-	`;
+	const sqlText = layout.compact
+		? `${insertPart}${conflictPart}${returning ? ` ${returning}` : ''};`
+		: `${insertPart}${conflictPart}\n${returning};`;
 
 	return {
-		sqlText: sqlText.trim(),
+		sqlText,
 		values: valuesForInsert,
 	};
 }
@@ -136,12 +118,13 @@ ${returning};
  * Constructs an SQL UPDATE query with WHERE clause and optional returning clause.
  *
  * @param tableName - The name of the table to update.
- * @param columnsForUpdate - Array of column names to be updated.
+ * @param columnsForUpdate - Array of column names to be updated with bound values.
  * @param valuesForUpdate - Array of values corresponding to the columns to be updated.
- * @param whereClause - The WHERE clause (without the WHERE keyword).
+ * @param whereClause - The WHERE clause, with its placeholders numbered from $1.
  * @param whereValues - Array of values for the WHERE clause parameters.
  * @param returnField - The field(s) to be returned after the update operation.
  * @param schemaColumns - The columns of the table definition, used to validate returnField.
+ * @param layout - Columns with an SQL expression as value, and the one-line layout.
  *
  * @returns Object The constructed SQL UPDATE query string and an array of values.
  */
@@ -152,30 +135,25 @@ export function buildUpdateSqlQuery<T extends Record<string, ColumnDefinition>>(
 	whereClause: string,
 	whereValues: any[],
 	returnField: keyof T | (keyof T)[] | '*' | undefined,
-	schemaColumns: Record<string, unknown>
+	schemaColumns: Record<string, unknown>,
+	layout: WriteLayout = {}
 ): {sqlText: string; values: any[]} {
-	// Create SET assignments like "column" = $1, "column2" = $2
-	const setAssignments = columnsForUpdate.map((column, index) => `"${String(column)}" = $${index + 1}`).join(', ');
+	const expressions = layout.expressions ?? [];
+	// Create SET assignments like "column" = $1, "column2" = $2. An expression is written as it is.
+	const setAssignments = [
+		...columnsForUpdate.map((column, index) => `"${String(column)}" = $${index + 1}`),
+		...expressions.map((expression) => `"${expression.column}" = ${expression.sql}`),
+	].join(', ');
 
-	// Adjust WHERE clause parameter indices to start after SET parameters
-	const adjustedWhereClause = whereClause.replace(/\$(\d+)/g, (match, num) => {
-		const newNum = parseInt(num, 10) + valuesForUpdate.length;
-		return `$${newNum}`;
-	});
+	// The placeholders of the WHERE clause continue after the SET parameters
+	const adjustedWhereClause = renumber(whereClause, valuesForUpdate.length);
 
 	const returning = returningClause(returnField, schemaColumns);
+	const returningPart = returning ? `\n${returning}` : '';
 
-	// Building the SQL text
-	const sqlText = `
-UPDATE ${tableName}
-SET ${setAssignments}
-${adjustedWhereClause}${
-		returning
-			? `
-${returning}`
-			: ''
-	};
-	`.trim();
+	const sqlText = layout.compact
+		? `UPDATE ${tableName} SET ${setAssignments}${adjustedWhereClause ? ` ${adjustedWhereClause}` : ''}${returningPart};`
+		: `UPDATE ${tableName}\nSET ${setAssignments}\n${adjustedWhereClause}${returningPart};`;
 
 	// Combine values: SET values first, then WHERE values
 	const allValues = [...valuesForUpdate, ...whereValues];

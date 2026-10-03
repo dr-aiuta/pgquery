@@ -2,7 +2,7 @@ import {TableDefinition} from '../../../src/types';
 import {TableBase} from '../../../src/core/table-base';
 import {UsersSchema, usersColumns, UsersData} from '../definitions/users';
 import {QueryParams} from '../../../src/types';
-import {QueryObject, QueryResult} from '../../../src/utils/query-utils';
+import {QueryResult} from '../../../src/utils/query-utils';
 import {SelectUserDetailsInterface, SelectUserDetailsSchema} from '../views/selectUserDetails';
 import predefinedUsersQueries from '../queries/predefined/users';
 

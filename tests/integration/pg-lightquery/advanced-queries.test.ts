@@ -1,4 +1,4 @@
-import {setupTests, dbpg, usersTable, createQueryResult} from './test-setup';
+import {setupTests, dbpg, usersTable} from './test-setup';
 
 describe('Table Operations - Advanced Query Operations', () => {
 	setupTests();

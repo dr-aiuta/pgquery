@@ -1,8 +1,7 @@
 import {TableDefinition} from '../types/core-types';
-import {ColumnDefinition, SchemaToData, ColumnTypeMapping, QueryParams} from '../types/core-types';
+import {ColumnDefinition, SchemaToData, ColumnTypeMapping} from '../types/core-types';
 import {QueryArrayResult, QueryResultRow} from 'pg';
 import {
-	QueryObject,
 	QueryResult,
 	TransactionResult,
 	BaseOptions,
@@ -13,7 +12,43 @@ import {
 	CustomBaseOptions,
 	CustomSelectOptions,
 } from '../utils/query-utils';
-import {DatabaseOperations} from './database-operations';
+import {DatabaseOperations, registerTableOperations} from './database-operations';
+import {ChainedInsertBuilder} from '../utils/chained-insert-builder';
+
+/**
+ * Configuration for related table operations
+ */
+export interface RelatedTableConfig<T extends Record<string, {type: any}>> {
+	tableDefinition: TableDefinition<T>;
+	db?: DatabaseOperations<T>; // Optional pre-created instance
+}
+
+/**
+ * Registry for related tables that can be used in chained operations
+ */
+export class RelatedTablesRegistry {
+	private tables = new Map<string, DatabaseOperations<any>>();
+
+	public register<T extends Record<string, {type: any}>>(name: string, config: RelatedTableConfig<T>): void {
+		if (config.db) {
+			this.tables.set(name, config.db);
+		} else {
+			this.tables.set(name, new DatabaseOperations(config.tableDefinition));
+		}
+	}
+
+	public get<T extends Record<string, {type: any}>>(name: string): DatabaseOperations<T> {
+		const table = this.tables.get(name);
+		if (!table) {
+			throw new Error(`Related table '${name}' is not registered. Call registerRelatedTable() first.`);
+		}
+		return table;
+	}
+
+	public has(name: string): boolean {
+		return this.tables.has(name);
+	}
+}
 
 /**
  * Base class for table implementations using composition
@@ -43,6 +78,27 @@ import {DatabaseOperations} from './database-operations';
  * usersTable.insertUser({name: 'John'}); // ✅ Available - intended public API
  * usersTable.insert(...);               // ❌ Not available - good!
  * ```
+ *
+ * A table class can also run chained inserts. Register the other tables once, then name them in a chain:
+ *
+ * @example
+ * ```typescript
+ * class PlacesTable extends TableBase<PlacesSchema> {
+ *   constructor() {
+ *     super(placesTable);
+ *     this.registerRelatedTable('places_contacts', {tableDefinition: placesContactsTable});
+ *   }
+ *
+ *   public insertPlaceWithContact(data: PlacesData, idContact: number) {
+ *     return this.createChainedInsert()
+ *       .insert('place', this, data, {allowedColumns: ['name', 'street']})
+ *       .insertIntoTableWithReference('place_contact', 'places_contacts', {idContact},
+ *         {from: 'place', field: 'idPlace', to: 'idPlace'}, {allowedColumns: ['idContact']})
+ *       .selectFrom('place')
+ *       .build();
+ *   }
+ * }
+ * ```
  */
 export abstract class TableBase<T extends Record<string, {type: keyof ColumnTypeMapping}>> {
 	/**
@@ -71,10 +127,15 @@ export abstract class TableBase<T extends Record<string, {type: keyof ColumnType
 		primaryKeys: (keyof T)[];
 	};
 
+	/** The tables registered for chained operations. Created on first use. */
+	private relatedTables?: RelatedTablesRegistry;
+
 	constructor(tableDefinition: TableDefinition<T>) {
 		this.db = new DatabaseOperations(tableDefinition);
 		this.tableName = this.db.tableName;
 		this.schema = this.db.schema;
+		// Lets a chained insert take this table class, without making db public.
+		registerTableOperations(this, this.db);
 	}
 
 	/**
@@ -131,4 +192,49 @@ export abstract class TableBase<T extends Record<string, {type: keyof ColumnType
 	protected transaction(): TransactionResult<QueryArrayResult<any>[]> {
 		return this.db.transaction();
 	}
+
+	private relatedTablesRegistry(): RelatedTablesRegistry {
+		if (!this.relatedTables) {
+			this.relatedTables = new RelatedTablesRegistry();
+		}
+		return this.relatedTables;
+	}
+
+	/**
+	 * Register a related table for use in chained operations
+	 */
+	protected registerRelatedTable<R extends Record<string, {type: any}>>(
+		name: string,
+		config: RelatedTableConfig<R>
+	): void {
+		this.relatedTablesRegistry().register(name, config);
+	}
+
+	/**
+	 * Get a registered related table
+	 */
+	protected getRelatedTable<R extends Record<string, {type: any}>>(name: string): DatabaseOperations<R> {
+		return this.relatedTablesRegistry().get(name);
+	}
+
+	/**
+	 * Create a new chained insert builder that knows this table's registered tables
+	 */
+	protected createChainedInsert(): ChainedInsertBuilder {
+		return new ChainedInsertBuilder(this.relatedTablesRegistry());
+	}
+
+	/**
+	 * Quick method for simple chained inserts
+	 */
+	protected chainedInsert(): ChainedInsertBuilder {
+		return this.createChainedInsert();
+	}
+}
+
+/**
+ * Simple utility function for tables that don't want to extend TableBase
+ */
+export function createRelatedTablesHelper(): RelatedTablesRegistry {
+	return new RelatedTablesRegistry();
 }
