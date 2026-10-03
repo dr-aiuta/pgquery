@@ -38,6 +38,15 @@ jobs:
 
       - run: npm ci
       - run: npx tsc --noEmit
+      - run: npm run format:check
+
+      # Files in src/sql only build SQL text. They never import connection.ts.
+      - name: Check that src/sql stays pure
+        run: |
+          if grep -rn "connection" src/sql; then
+            echo "A file in src/sql mentions connection. src/sql must not import connection.ts."
+            exit 1
+          fi
 
       # The live suites are skipped when this variable is unset.
       - run: npm test
