@@ -1,4 +1,4 @@
-import {DatabaseOperations} from '../../../src/core/database-operations';
+import {DatabaseOperations} from '../../../src/database-operations';
 import UsersTable from '../../tables/entities/UsersTable';
 import {
 	describeLive,
@@ -92,7 +92,9 @@ describeLive('live: filters, sorting and paging', () => {
 
 	describe('where operators', () => {
 		const select = (where: Record<string, unknown>) =>
-			usersTable.selectUsers(['id', 'name', 'email', 'createdAt'], {where: {...where, 'id.orderBy': 'ASC'} as any}).execute();
+			usersTable
+				.selectUsers(['id', 'name', 'email', 'createdAt'], {where: {...where, 'id.orderBy': 'ASC'} as any})
+				.execute();
 
 		it('.not', async () => {
 			expect(names(await select({'name.not': 'Ann'}))).toEqual(['Bob', 'Carol', 'Dave']);
@@ -127,7 +129,10 @@ describeLive('live: filters, sorting and paging', () => {
 
 		it('a JSON key', async () => {
 			const dark = await userSettingsDb
-				.select({allowedColumns: '*', options: {where: {settings: {theme: 'dark'}} as any, columnsToReturn: ['userId']}})
+				.select({
+					allowedColumns: '*',
+					options: {where: {settings: {theme: 'dark'}} as any, columnsToReturn: ['userId']},
+				})
 				.execute();
 			expect(dark).toEqual([{userId: 1}]);
 

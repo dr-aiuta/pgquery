@@ -50,7 +50,11 @@ describe('names with a line break are rejected', () => {
 			['column name', {columns: [nameColumn, dbColumn({column_name: payload})]}, usersWith({})],
 			[
 				'type name',
-				{columns: [dbColumn({column_name: 'name', data_type: 'USER-DEFINED', udt_schema: 'public', udt_name: payload})]},
+				{
+					columns: [
+						dbColumn({column_name: 'name', data_type: 'USER-DEFINED', udt_schema: 'public', udt_name: payload}),
+					],
+				},
 				usersWith({}),
 			],
 			[
@@ -128,20 +132,23 @@ describe('the comment function is a second layer', () => {
 		const before: MigrationStep = {sql: 'ALTER TABLE "public"."a" ADD COLUMN "b" text', review: false};
 		const after: MigrationStep = {sql: 'ALTER TABLE "public"."a" ADD COLUMN "c" text', review: false, note: 'a note'};
 
-		it.each(['node-pg-migrate-ts', 'node-pg-migrate-js'] as const)('%s issues only the active steps', async (format) => {
-			const escape = `x${terminator}pgm.sql('DROP TABLE users'); //`;
-			const review: MigrationStep = {
-				// A default may span lines. Inside a review step every line of it is commented.
-				sql: `ALTER TABLE "public"."a" ALTER COLUMN "note" SET DEFAULT 'one${terminator}\`); pgm.sql(\`DROP TABLE users\`); //'`,
-				review: true,
-				note: `Dropping ${escape} deletes its data.`,
-			};
-			const activeWithNote: MigrationStep = {...after, note: `a note ${escape}`};
+		it.each(['node-pg-migrate-ts', 'node-pg-migrate-js'] as const)(
+			'%s issues only the active steps',
+			async (format) => {
+				const escape = `x${terminator}pgm.sql('DROP TABLE users'); //`;
+				const review: MigrationStep = {
+					// A default may span lines. Inside a review step every line of it is commented.
+					sql: `ALTER TABLE "public"."a" ALTER COLUMN "note" SET DEFAULT 'one${terminator}\`); pgm.sql(\`DROP TABLE users\`); //'`,
+					review: true,
+					note: `Dropping ${escape} deletes its data.`,
+				};
+				const activeWithNote: MigrationStep = {...after, note: `a note ${escape}`};
 
-			const content = renderMigration([before, review, activeWithNote], format);
+				const content = renderMigration([before, review, activeWithNote], format);
 
-			expect(await runUp(content)).toEqual([before.sql, after.sql]);
-		});
+				expect(await runUp(content)).toEqual([before.sql, after.sql]);
+			}
+		);
 
 		it('sql leaves no line of a review step outside a comment', () => {
 			const escape = `x${terminator}DROP TABLE users; --`;

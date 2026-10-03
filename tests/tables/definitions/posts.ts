@@ -1,4 +1,4 @@
-import {ColumnDefinition, SchemaToData, Mutable, QueryParams} from '@/types';
+import {ColumnDefinition, SchemaToData, Mutable, QueryParams} from '../../../src/types';
 
 export type PostsColumnName = 'id' | 'userId' | 'title' | 'content' | 'createdAt' | 'updatedAt';
 

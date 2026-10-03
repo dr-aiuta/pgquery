@@ -1,5 +1,5 @@
 import {DatabaseError} from 'pg';
-import PostgresConnection from '../../../src/connection/postgres-connection';
+import PostgresConnection from '../../../src/connection';
 import UsersTable from '../../tables/entities/UsersTable';
 import PostsTable from '../../tables/entities/PostsTable';
 import {

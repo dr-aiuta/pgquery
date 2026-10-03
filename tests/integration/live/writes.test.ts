@@ -1,5 +1,5 @@
-import {DatabaseOperations} from '../../../src/core/database-operations';
-import {TableDefinition} from '../../../src/types/core-types';
+import {DatabaseOperations} from '../../../src/database-operations';
+import {TableDefinition} from '../../../src/types';
 import UsersTable from '../../tables/entities/UsersTable';
 import {UsersSchema, usersColumns} from '../../tables/definitions/users';
 import {
@@ -48,7 +48,12 @@ describeLive('live: inserts, upserts and updates', () => {
 		expect(selected).toEqual({id: inserted.id, name: 'John Doe', email: 'john.doe@example.com'});
 
 		const updated = await usersTable
-			.updateUser(['name'], {data: {name: 'John Updated'}, where: {id: inserted.id}, returnField: 'id', idUser: 'editor'})
+			.updateUser(['name'], {
+				data: {name: 'John Updated'},
+				where: {id: inserted.id},
+				returnField: 'id',
+				idUser: 'editor',
+			})
 			.execute();
 		expect(updated).toEqual([{id: inserted.id}]);
 
@@ -105,7 +110,9 @@ describeLive('live: inserts, upserts and updates', () => {
 	describe('returnField', () => {
 		it("returns '*', one column or a list of columns from an insert", async () => {
 			const insert = (email: string, returnField: any) =>
-				usersDb.insert({allowedColumns: ['name', 'email'], options: {data: {name: 'Return', email}, returnField}}).execute();
+				usersDb
+					.insert({allowedColumns: ['name', 'email'], options: {data: {name: 'Return', email}, returnField}})
+					.execute();
 
 			const [all] = await insert('return-all@example.com', '*');
 			expect(Object.keys(all).sort()).toEqual(['createdAt', 'email', 'id', 'lastChangedBy', 'name', 'updatedAt']);

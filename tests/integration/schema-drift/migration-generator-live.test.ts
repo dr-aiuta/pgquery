@@ -2,7 +2,7 @@ import {Client} from 'pg';
 import {checkSchemaDrift} from '../../../src/schema/schema-drift';
 import {generateMigration, renderMigration} from '../../../src/schema/migration-generator';
 import {TableDefinition} from '../../../src/types';
-import {sqlExpression} from '../../../src/utils/sql-expression';
+import {sqlExpression} from '../../../src/sql/expression';
 
 /**
  * Generates migrations against a real PostgreSQL server, applies them, and checks that no drift remains.

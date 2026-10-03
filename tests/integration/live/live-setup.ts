@@ -1,7 +1,7 @@
 import {randomBytes} from 'crypto';
 import {Client, PoolConfig} from 'pg';
-import PostgresConnection, {ConnectionOptions} from '../../../src/connection/postgres-connection';
-import {ColumnDefinition, TableDefinition} from '../../../src/types/core-types';
+import PostgresConnection, {ConnectionOptions} from '../../../src/connection';
+import {ColumnDefinition, TableDefinition} from '../../../src/types';
 
 /**
  * Shared setup for the suites that reach a real PostgreSQL server.

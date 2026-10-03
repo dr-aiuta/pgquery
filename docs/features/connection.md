@@ -18,14 +18,14 @@ await PostgresConnection.end();
 
 All of them are static.
 
-| Method | What it does | Since |
-|---|---|---|
+| Method                         | What it does                                                                                                                               | Since                 |
+| ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------ | --------------------- |
 | `initialize(config, options?)` | Creates the pool. `config` is a [`pg` pool configuration](https://node-postgres.com/apis/pool). `options` holds the logger settings below. | `options` since 0.5.0 |
-| `getInstance()` | Returns the initialized connection. | |
-| `query(text, params)` | Runs one statement on a pool connection and resolves to the pg result. | |
-| `transaction(queries)` | Runs a list of query objects as one transaction. See [Transactions and chains](transactions-and-chains.md). | 0.4.7 |
-| `transaction(text, params)` | Runs one statement inside `BEGIN` and `COMMIT`. | |
-| `end()` | Closes the pool and clears the connection, so `initialize` can be called again. | 0.4.7 |
+| `getInstance()`                | Returns the initialized connection.                                                                                                        |                       |
+| `query(text, params)`          | Runs one statement on a pool connection and resolves to the pg result.                                                                     |                       |
+| `transaction(queries)`         | Runs a list of query objects as one transaction. See [Transactions and chains](transactions-and-chains.md).                                | 0.4.7                 |
+| `transaction(text, params)`    | Runs one statement inside `BEGIN` and `COMMIT`.                                                                                            |                       |
+| `end()`                        | Closes the pool and clears the connection, so `initialize` can be called again.                                                            | 0.4.7                 |
 
 ## Logging
 
@@ -44,20 +44,20 @@ PostgresConnection.initialize(
 );
 ```
 
-| Option | Default | Meaning |
-|---|---|---|
-| `logger` | none | A function called once for every statement the library sends. |
-| `slowQueryMs` | `2000` | A statement that takes at least this long is reported with `slow: true`. |
+| Option        | Default | Meaning                                                                  |
+| ------------- | ------- | ------------------------------------------------------------------------ |
+| `logger`      | none    | A function called once for every statement the library sends.            |
+| `slowQueryMs` | `2000`  | A statement that takes at least this long is reported with `slow: true`. |
 
 The logger receives one entry per statement:
 
-| Field | Meaning |
-|---|---|
-| `sqlText` | the SQL text of the statement |
-| `durationMs` | how long it took, in milliseconds |
-| `rowCount` | the row count PostgreSQL reported. `null` when the statement failed. |
-| `slow` | `true` when `durationMs` reached `slowQueryMs` |
-| `failed` | `true` when the statement failed |
+| Field        | Meaning                                                              |
+| ------------ | -------------------------------------------------------------------- |
+| `sqlText`    | the SQL text of the statement                                        |
+| `durationMs` | how long it took, in milliseconds                                    |
+| `rowCount`   | the row count PostgreSQL reported. `null` when the statement failed. |
+| `slow`       | `true` when `durationMs` reached `slowQueryMs`                       |
+| `failed`     | `true` when the statement failed                                     |
 
 For an insert, a select and a failed insert, the entries read:
 

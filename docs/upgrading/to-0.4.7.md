@@ -65,6 +65,7 @@ Nothing breaks in this release. Each step is a behavior note, with a way to find
   ```
 
   Look for a column that exists in the database and is missing from the table definition.
+
 - **Change it.** Add the missing column to the table definition:
 
   ```typescript
@@ -94,6 +95,7 @@ Nothing breaks in this release. Each step is a behavior note, with a way to find
   ```
 
   Look for calls whose data can hold nothing but the key, and for tables with more than one primary key column.
+
 - **Change it.** Nothing is required. Code that caught the syntax error can be removed.
 - **Check it.** Run the upsert twice in a test. The second call succeeds and returns no row.
 

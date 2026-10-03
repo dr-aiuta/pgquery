@@ -2,7 +2,7 @@ import * as ts from 'typescript';
 import {defaultToSql, generateMigration, renderMigration, MigrationStep} from '../../src/schema/migration-generator';
 import {SchemaDriftQueryFn} from '../../src/schema/schema-drift';
 import {TableDefinition} from '../../src/types';
-import {sqlExpression} from '../../src/utils/sql-expression';
+import {sqlExpression} from '../../src/sql/expression';
 
 // Empty catalog: every table is missing
 const emptyCatalog: SchemaDriftQueryFn = async () => ({rows: []});

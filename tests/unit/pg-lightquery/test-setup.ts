@@ -1,0 +1,101 @@
+import {QueryResultRow, QueryResult} from 'pg';
+import PostsTable from '../../tables/entities/PostsTable';
+import UsersTable from '../../tables/entities/UsersTable';
+import AddressesTable from '../../tables/entities/AddressesTable';
+import PostgresConnection from '../../../src/connection';
+
+// Mock PostgresConnection
+jest.mock('../../../src/connection', () => {
+	const mPool = {
+		connect: jest.fn(),
+		query: jest.fn(),
+		end: jest.fn(),
+		transaction: jest.fn(),
+	};
+
+	// The real transaction(queries) runs BEGIN, each statement and COMMIT on one client.
+	// The mocked query stands in for that client, so suites keep asserting on dbpg.query.
+	mPool.transaction.mockImplementation(async (textOrQueries: any, queryParams?: any[]) => {
+		const statements = Array.isArray(textOrQueries)
+			? textOrQueries.map((queryObject: {sqlText: string; values: any[]}) => [queryObject.sqlText, queryObject.values])
+			: [[textOrQueries, queryParams]];
+		const results = [];
+		try {
+			await mPool.query('BEGIN');
+			for (const [sqlText, values] of statements) {
+				results.push(await mPool.query(sqlText, values));
+			}
+			await mPool.query('COMMIT');
+		} catch (error) {
+			try {
+				await mPool.query('ROLLBACK');
+			} catch (rollbackError) {
+				// The original error is the one that matters.
+			}
+			throw error;
+		}
+		return Array.isArray(textOrQueries) ? results : results[0];
+	});
+
+	return {
+		__esModule: true,
+		default: {
+			initialize: jest.fn().mockReturnThis(),
+			getInstance: jest.fn().mockReturnThis(),
+			query: mPool.query,
+			transaction: mPool.transaction,
+		},
+	};
+});
+
+// Import the mocked PostgresConnection
+import dbpg from '../../../src/connection';
+
+// Helper function to create a query result object
+export const createQueryResult = <T extends QueryResultRow>(rows: T[]): QueryResult<T> => ({
+	command: '',
+	rowCount: rows.length,
+	oid: 0,
+	rows,
+	fields: [],
+});
+
+// Instantiate our table classes
+export const usersTable = new UsersTable();
+export const postsTable = new PostsTable();
+export const addressesTable = new AddressesTable();
+
+export const setupTests = () => {
+	beforeAll(() => {
+		const testDbConfig = {
+			host: 'localhost',
+			port: 5432,
+			user: 'test_user',
+			password: 'test_password',
+			database: 'test_database',
+		};
+		// Initialize PostgresConnection before tests
+		PostgresConnection.initialize(testDbConfig);
+		// Clear any existing mocks
+		jest.clearAllMocks();
+	});
+
+	afterEach(() => {
+		jest.clearAllMocks();
+	});
+};
+
+// Helper functions for the new standardized interface testing
+export const createMockQueryResult = <T>(data: T[]): {rows: T[]} => ({
+	rows: data,
+});
+
+export const expectQueryToContain = (mockQuery: jest.Mock, sqlPattern: string | RegExp) => {
+	expect(mockQuery).toHaveBeenCalledWith(expect.stringMatching(sqlPattern), expect.any(Array));
+};
+
+export const expectQueryValues = (mockQuery: jest.Mock, expectedValues: any[]) => {
+	expect(mockQuery).toHaveBeenCalledWith(expect.any(String), expect.arrayContaining(expectedValues));
+};
+
+export {dbpg};

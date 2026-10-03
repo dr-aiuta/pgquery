@@ -91,6 +91,7 @@ Projects on 0.0.x use a different API. Read [Upgrading from 0.0.x](from-0.0.x.md
   The full pattern is in [Filters: passing request input safely](../features/filters.md#passing-request-input-safely).
 
   This step needs a judgement call. The question to answer for each route: should an unknown parameter be ignored or rejected?
+
 - **Check it.** A request with an unknown parameter gets the response you chose. A `limit` above the maximum gets 400.
 
 ### 3. `null` now writes NULL
@@ -117,6 +118,7 @@ Projects on 0.0.x use a different API. Read [Upgrading from 0.0.x](from-0.0.x.md
   This step needs a judgement call. The question to answer for each site: what does `null` mean in this payload?
 
   Note for inserts: a `null` is now written as `NULL`, where it used to leave the column default in place.
+
 - **Check it.** A test that updates with `null` clears the column. A test with the key removed leaves it alone.
 
 ### 4. `.null` and unknown operators
@@ -140,6 +142,7 @@ Projects on 0.0.x use a different API. Read [Upgrading from 0.0.x](from-0.0.x.md
   ```
 
   The supported operators are `not`, `like`, `in`, `null`, `startDate`, `endDate` and `orderBy`. A filter on a JSON key is an object value: `{settings: {theme: 'dark'}}`.
+
 - **Check it.** Print `.query.sqlText` for one call of each kind and read the clause.
 
 ### 5. Removed exports
@@ -161,17 +164,17 @@ Projects on 0.0.x use a different API. Read [Upgrading from 0.0.x](from-0.0.x.md
   import {TableBase} from 'pg-lightquery';
   ```
 
-  | Removed | Replacement |
-  |---|---|
-  | `import X from 'pg-lightquery'` | `import {TableBase} from 'pg-lightquery'` |
-  | `QueryBuilder` | `TableBase` |
-  | `pgUtilsDb`, `pgUtilsHelpers` | none. They were internals. |
-  | `createCTETransaction()`, `createEnhancedCTE()` | `createChainedInsert()` |
-  | `insertCTE({name, table, data, options})`, `addInsert({name, table, data, options})` | `insert(name, table, data, options)` |
-  | `insertCTE` with `useValueFrom`, `addInsert` with `references` | `insertWithReference(name, table, data, {from, field, to}, options)` |
-  | `conditionalInsertCTE({condition, ...})`, `addConditionalInsert(condition, config)` | `insertWithReferenceIf(condition, name, table, data, reference, options)` |
-  | `finalSelect(cteName, columns)`, `build({cteName, columns})` | `selectFrom(cteName, columns)`, then `build()` |
-  | `build()` | `build()`. It returns the same `{queries, execute}` shape. |
+  | Removed                                                                              | Replacement                                                               |
+  | ------------------------------------------------------------------------------------ | ------------------------------------------------------------------------- |
+  | `import X from 'pg-lightquery'`                                                      | `import {TableBase} from 'pg-lightquery'`                                 |
+  | `QueryBuilder`                                                                       | `TableBase`                                                               |
+  | `pgUtilsDb`, `pgUtilsHelpers`                                                        | none. They were internals.                                                |
+  | `createCTETransaction()`, `createEnhancedCTE()`                                      | `createChainedInsert()`                                                   |
+  | `insertCTE({name, table, data, options})`, `addInsert({name, table, data, options})` | `insert(name, table, data, options)`                                      |
+  | `insertCTE` with `useValueFrom`, `addInsert` with `references`                       | `insertWithReference(name, table, data, {from, field, to}, options)`      |
+  | `conditionalInsertCTE({condition, ...})`, `addConditionalInsert(condition, config)`  | `insertWithReferenceIf(condition, name, table, data, reference, options)` |
+  | `finalSelect(cteName, columns)`, `build({cteName, columns})`                         | `selectFrom(cteName, columns)`, then `build()`                            |
+  | `build()`                                                                            | `build()`. It returns the same `{queries, execute}` shape.                |
 
 - **Check it.** The type check passes.
 
@@ -198,11 +201,16 @@ Projects on 0.0.x use a different API. Read [Upgrading from 0.0.x](from-0.0.x.md
   ```
 
   Also look for predefined SQL that ends in `WHERE 1=1` so a filter could be appended.
+
 - **Change it.** Remove `alias`. Remove the hand-written wrapper if you want. Pass `.orderBy` when a filtered query must be ordered. Filter on result column names, not on names inside the predefined query.
 
   ```typescript
   // before: the filter was appended, so it needed the alias of the inner table
-  this.select({allowedColumns: ['name'], predefinedSQL: {sqlText: 'SELECT * FROM users u'}, options: {where, alias: 'u'}});
+  this.select({
+  	allowedColumns: ['name'],
+  	predefinedSQL: {sqlText: 'SELECT * FROM users u'},
+  	options: {where, alias: 'u'},
+  });
 
   // after: the filter names a column of the result
   this.select({allowedColumns: ['name'], predefinedSQL: {sqlText: 'SELECT * FROM users u'}, options: {where}});
@@ -267,6 +275,7 @@ Projects on 0.0.x use a different API. Read [Upgrading from 0.0.x](from-0.0.x.md
   A typed column also stops taking `null` unless its type allows it. `{active: null}` no longer compiles.
 
   `BIGINT` is `string | number`, because node-postgres returns it as a string. `JSON` and `JSONB` are `unknown` and need a cast when you read them. The full table is in [Schema: column types](../features/schema.md#column-types).
+
 - **Check it.** The type check passes, with fewer `as any` casts than before.
 
 ### 11. Only the package entry points can be imported
@@ -313,6 +322,7 @@ Projects on 0.0.x use a different API. Read [Upgrading from 0.0.x](from-0.0.x.md
   ```
 
   This step needs a judgement call. The question to answer for each string default: is it a value, or SQL to evaluate?
+
 - **Check it.** Generate a draft for a new table and read the `DEFAULT` clauses. See [Schema: defaults](../features/schema.md#defaults).
 
 ## After the upgrade

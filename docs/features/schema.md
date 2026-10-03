@@ -42,26 +42,26 @@ console.log(draft.content);
 
 ## Column types
 
-| Type | TypeScript type | PostgreSQL type |
-|---|---|---|
-| `VARCHAR` | `string` | `character varying`, with `length` when set |
-| `TEXT` | `string` | `text` |
-| `UUID` | `string` | `uuid` |
-| `SMALLINT` | `number` | `smallint` |
-| `INTEGER` | `number` | `integer` |
-| `BIGINT` | `string \| number` | `bigint` |
-| `NUMERIC` | `number` | `numeric`, with `precision` and `scale` when set |
-| `REAL` | `number` | `real` |
-| `DOUBLE PRECISION` | `number` | `double precision` |
-| `BOOLEAN` | `boolean` | `boolean` |
-| `JSON` | `unknown` | `json` |
-| `JSONB` | `unknown` | `jsonb` |
-| `DATE` | `Date \| string` | `date` |
-| `TIME WITHOUT TIME ZONE` | `string` | `time without time zone` |
-| `TIMESTAMP WITHOUT TIME ZONE` | `Date \| string` | `timestamp without time zone` |
-| `TIMESTAMP WITH TIME ZONE` | `Date \| string` | `timestamp with time zone` |
-| `TIMESTAMPTZ` | `Date \| string` | `timestamp with time zone`. An alias of the row above. |
-| `ENUM` | `string \| number` | an enum type, see below |
+| Type                          | TypeScript type    | PostgreSQL type                                        |
+| ----------------------------- | ------------------ | ------------------------------------------------------ |
+| `VARCHAR`                     | `string`           | `character varying`, with `length` when set            |
+| `TEXT`                        | `string`           | `text`                                                 |
+| `UUID`                        | `string`           | `uuid`                                                 |
+| `SMALLINT`                    | `number`           | `smallint`                                             |
+| `INTEGER`                     | `number`           | `integer`                                              |
+| `BIGINT`                      | `string \| number` | `bigint`                                               |
+| `NUMERIC`                     | `number`           | `numeric`, with `precision` and `scale` when set       |
+| `REAL`                        | `number`           | `real`                                                 |
+| `DOUBLE PRECISION`            | `number`           | `double precision`                                     |
+| `BOOLEAN`                     | `boolean`          | `boolean`                                              |
+| `JSON`                        | `unknown`          | `json`                                                 |
+| `JSONB`                       | `unknown`          | `jsonb`                                                |
+| `DATE`                        | `Date \| string`   | `date`                                                 |
+| `TIME WITHOUT TIME ZONE`      | `string`           | `time without time zone`                               |
+| `TIMESTAMP WITHOUT TIME ZONE` | `Date \| string`   | `timestamp without time zone`                          |
+| `TIMESTAMP WITH TIME ZONE`    | `Date \| string`   | `timestamp with time zone`                             |
+| `TIMESTAMPTZ`                 | `Date \| string`   | `timestamp with time zone`. An alias of the row above. |
+| `ENUM`                        | `string \| number` | an enum type, see below                                |
 
 Three notes on the TypeScript types:
 
@@ -145,11 +145,11 @@ Each issue has a `kind`, the `table`, the `column`, what was `expected`, what wa
 
 Options:
 
-| Option | Default | Purpose |
-|---|---|---|
-| `defaultSchema` | `'public'` | Schema for table names without a schema prefix |
-| `ignoreExtraColumns` | `false` | Skip database columns that the definition does not declare |
-| `query` | the initialized `PostgresConnection` | The function that runs the catalog queries. Any function of the shape `(text, values) => Promise<{rows}>` works, for example a `pg` client. |
+| Option               | Default                              | Purpose                                                                                                                                     |
+| -------------------- | ------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| `defaultSchema`      | `'public'`                           | Schema for table names without a schema prefix                                                                                              |
+| `ignoreExtraColumns` | `false`                              | Skip database columns that the definition does not declare                                                                                  |
+| `query`              | the initialized `PostgresConnection` | The function that runs the catalog queries. Any function of the shape `(text, values) => Promise<{rows}>` works, for example a `pg` client. |
 
 ### In CI
 
@@ -199,11 +199,11 @@ It takes the options of `checkSchemaDrift`, plus `format`.
 
 ### Output formats
 
-| `format` | Output |
-|---|---|
+| `format`               | Output                                                                |
+| ---------------------- | --------------------------------------------------------------------- |
 | `'node-pg-migrate-ts'` | A TypeScript migration file for node-pg-migrate. This is the default. |
-| `'node-pg-migrate-js'` | The same as a CommonJS file. |
-| `'sql'` | Plain SQL statements. Any migration tool can run them. |
+| `'node-pg-migrate-js'` | The same as a CommonJS file.                                          |
+| `'sql'`                | Plain SQL statements. Any migration tool can run them.                |
 
 The generator emits plain SQL through `pgm.sql`, so the migration runs exactly the reviewed statements. For a definition that gained a `bio` column while the database still has a `legacyBio` column, the TypeScript format reads:
 

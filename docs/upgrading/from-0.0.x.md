@@ -78,18 +78,18 @@ Everything since 0.0.x. The parts you meet first:
 
 Each row was checked against the 0.0.19 source.
 
-| 0.0.x | 0.5.0 |
-|---|---|
-| `new DatabaseManager(dbConfig, modelsConfig)` | `PostgresConnection.initialize(dbConfig)` once, plus one table class per model |
-| one entry of `modelsConfig`, with `tableName` and `schema` | one table definition, `{tableName, schema: {columns}}`, and one class that extends `TableBase` |
-| a query with `type: 'select'` and SQL such as `SELECT * FROM users` | a method that calls `this.select({allowedColumns, options: {where}})` |
-| a query with `type: 'select'` and its own SQL: a join, an aggregate | a method that calls `this.select` or `this.selectWithCustomSchema` with `predefinedSQL: {sqlText}` |
-| `db.models.users.queries.getUsers(allowedColumns, whereObj)` | `users.getUsers(whereObj)`. `allowedColumns` and `options.where` live inside the method. |
-| `allowedColumns` as quoted names, `['"id"', '"name"']`, or `['*']` | plain names, `['id', 'name']`, or `'*'` |
-| the `alias` argument | removed. Predefined SQL is wrapped, so filters name the columns of its result. |
-| `sql` as a function of `sqlArgs` | build the SQL text in the method and pass it as `predefinedSQL.sqlText`, with its values in `predefinedSQL.values` |
-| a query of another `type`, with `sql` and `values(args)` | `this.insert(...)` or `this.update(...)`. For hand-written SQL, `PostgresConnection.query(sql, values)`. |
-| `processResult(result)` | `execute()` resolves to the rows. Transform them in the method. |
+| 0.0.x                                                               | 0.5.0                                                                                                              |
+| ------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| `new DatabaseManager(dbConfig, modelsConfig)`                       | `PostgresConnection.initialize(dbConfig)` once, plus one table class per model                                     |
+| one entry of `modelsConfig`, with `tableName` and `schema`          | one table definition, `{tableName, schema: {columns}}`, and one class that extends `TableBase`                     |
+| a query with `type: 'select'` and SQL such as `SELECT * FROM users` | a method that calls `this.select({allowedColumns, options: {where}})`                                              |
+| a query with `type: 'select'` and its own SQL: a join, an aggregate | a method that calls `this.select` or `this.selectWithCustomSchema` with `predefinedSQL: {sqlText}`                 |
+| `db.models.users.queries.getUsers(allowedColumns, whereObj)`        | `users.getUsers(whereObj)`. `allowedColumns` and `options.where` live inside the method.                           |
+| `allowedColumns` as quoted names, `['"id"', '"name"']`, or `['*']`  | plain names, `['id', 'name']`, or `'*'`                                                                            |
+| the `alias` argument                                                | removed. Predefined SQL is wrapped, so filters name the columns of its result.                                     |
+| `sql` as a function of `sqlArgs`                                    | build the SQL text in the method and pass it as `predefinedSQL.sqlText`, with its values in `predefinedSQL.values` |
+| a query of another `type`, with `sql` and `values(args)`            | `this.insert(...)` or `this.update(...)`. For hand-written SQL, `PostgresConnection.query(sql, values)`.           |
+| `processResult(result)`                                             | `execute()` resolves to the rows. Transform them in the method.                                                    |
 
 The same model on both versions:
 
@@ -145,17 +145,17 @@ users.getUsers({name: 'Ann', 'id.orderBy': 'DESC', limit: 10}).query.sqlText;
 
 ## Differences in behavior to check
 
-| Input | 0.0.x | 0.5.0 |
-|---|---|---|
-| `{name: null}` | `"name" IS NULL` | the same |
-| `{'name.not': null}` | `"name" IS NULL` | `"name" <> $1` with `null`, which matches no row. Use `{'name.null': false}` for `IS NOT NULL`. |
-| `limit` | allowed only when `'"limit"'` or `'*'` is in `allowedColumns`. The value goes into the SQL unchecked. | always allowed in `select`. It must be a non-negative integer. `offset` works the same way. |
-| `{'id.in': '1,2'}` | split on commas, `"id" IN ($1, $2)` | split on commas, `"id" = ANY($1)` with one array parameter |
-| `{'id.in': []}` | `IN ()`, which PostgreSQL rejects | an empty array, which matches no row |
-| a key outside `allowedColumns` | dropped in silence | throws `QueryInputError`. Set `ignoreUnknownKeys: true` to drop it. |
-| `<column>.orderBy` with a value outside `ASC` and `DESC` | written into the SQL | throws |
-| a query with its own SQL plus a filter | the filter is appended to the SQL | the SQL is wrapped as a subquery, and the filter applies to its result columns |
-| a failed query | the `pg` error | the same `pg` error, unchanged |
+| Input                                                    | 0.0.x                                                                                                 | 0.5.0                                                                                           |
+| -------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
+| `{name: null}`                                           | `"name" IS NULL`                                                                                      | the same                                                                                        |
+| `{'name.not': null}`                                     | `"name" IS NULL`                                                                                      | `"name" <> $1` with `null`, which matches no row. Use `{'name.null': false}` for `IS NOT NULL`. |
+| `limit`                                                  | allowed only when `'"limit"'` or `'*'` is in `allowedColumns`. The value goes into the SQL unchecked. | always allowed in `select`. It must be a non-negative integer. `offset` works the same way.     |
+| `{'id.in': '1,2'}`                                       | split on commas, `"id" IN ($1, $2)`                                                                   | split on commas, `"id" = ANY($1)` with one array parameter                                      |
+| `{'id.in': []}`                                          | `IN ()`, which PostgreSQL rejects                                                                     | an empty array, which matches no row                                                            |
+| a key outside `allowedColumns`                           | dropped in silence                                                                                    | throws `QueryInputError`. Set `ignoreUnknownKeys: true` to drop it.                             |
+| `<column>.orderBy` with a value outside `ASC` and `DESC` | written into the SQL                                                                                  | throws                                                                                          |
+| a query with its own SQL plus a filter                   | the filter is appended to the SQL                                                                     | the SQL is wrapped as a subquery, and the filter applies to its result columns                  |
+| a failed query                                           | the `pg` error                                                                                        | the same `pg` error, unchanged                                                                  |
 
 ## Steps
 
@@ -221,6 +221,7 @@ The mapping above was checked against the 0.0.19 source. Nobody has run this mig
   To move one query at a time, both versions have to be installed. An npm alias does that: keep the old one as `"pg-lightquery-legacy": "npm:pg-lightquery@0.0.19"` and import `DatabaseManager` from `pg-lightquery-legacy`. The maintainers have not tried this side-by-side install. The alternative is to move a whole model in one change.
 
   This step needs a judgement call. The question to answer for each query: which columns may a caller filter on? In 0.0.x that list was passed at each call. Now it is written once in the method.
+
 - **Check it.** Print `.query` for the new method and compare it with the SQL you noted for the old one. Use the differences table above to explain what is not identical.
 
 ### 5. Handle the stricter filters

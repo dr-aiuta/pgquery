@@ -1,7 +1,7 @@
 import {defaultToSql, generateMigration} from '../../src/schema/migration-generator';
 import {checkSchemaDrift} from '../../src/schema/schema-drift';
 import {TableDefinition} from '../../src/types';
-import {sqlExpression} from '../../src/utils/sql-expression';
+import {sqlExpression} from '../../src/sql/expression';
 import {emptyCatalog, catalogQuery, dbColumn, usersWith} from './migration-helpers';
 
 describe('string defaults are literals', () => {
