@@ -40,14 +40,14 @@ class PostsTable extends TableBase<PostsSchema> {
 		allowedColumns: (keyof PostsSchema)[] | '*',
 		options?: {
 			where?: QueryParams<PostsSchema>;
-			alias?: string;
+			ignoreUnknownKeys?: boolean;
 		}
 	): QueryResult<Partial<PostsData>[]> {
 		return this.select<PostsData>({
 			allowedColumns,
 			options: {
 				where: options?.where,
-				alias: options?.alias,
+				ignoreUnknownKeys: options?.ignoreUnknownKeys,
 			},
 		});
 	}

@@ -1,7 +1,12 @@
 import {TableBase} from './table-base';
 import {DatabaseOperations} from './database-operations';
 import {TableDefinition, SchemaToData} from '../types/core-types';
-import {createChainedInsert, ChainedInsertBuilder} from '../utils/chained-insert-builder';
+import {
+	createChainedInsert,
+	ChainedInsertBuilder,
+	InsertStepOptions,
+	UpdateStepOptions,
+} from '../utils/chained-insert-builder';
 import {QueryObject} from '../utils/query-utils';
 import {QueryArrayResult} from 'pg';
 
@@ -65,11 +70,11 @@ export class RelatedTablesRegistry {
  *
  *   public insertPlaceWithRelations(data: PlacesData, idContact: number, isBilling = false) {
  *     return this.createChainedInsert()
- *       .insert('place', this.db, data)
- *       .insertWithReference('place_contact', 'places_contacts', {idContact},
- *         {from: 'place', field: 'idPlace', to: 'idPlace'})
- *       .insertWithReferenceIf(isBilling, 'billing', 'places_contacts_billing', {},
- *         {from: 'place_contact', field: 'idPlaceContact', to: 'idPlaceContact'})
+ *       .insert('place', this.db, data, {allowedColumns: ['name', 'street']})
+ *       .insertIntoTableWithReference('place_contact', 'places_contacts', {idContact},
+ *         {from: 'place', field: 'idPlace', to: 'idPlace'}, {allowedColumns: ['idContact']})
+ *       .insertIntoTableWithReferenceIf(isBilling, 'billing', 'places_contacts_billing', {note},
+ *         {from: 'place_contact', field: 'idPlaceContact', to: 'idPlaceContact'}, {allowedColumns: ['note']})
  *       .selectFrom('place')
  *       .build();
  *   }
@@ -133,11 +138,7 @@ export class EnhancedChainedInsertBuilder extends ChainedInsertBuilder {
 		cteName: string,
 		table: DatabaseOperations<T>,
 		data: Partial<SchemaToData<T>>,
-		options?: {
-			returnField?: keyof T | (keyof T)[] | '*';
-			onConflict?: boolean;
-			idUser?: string;
-		}
+		options: InsertStepOptions<T>
 	): EnhancedChainedInsertBuilder {
 		super.insert(cteName, table, data, options);
 		return this;
@@ -152,11 +153,7 @@ export class EnhancedChainedInsertBuilder extends ChainedInsertBuilder {
 		table: DatabaseOperations<T>,
 		data: Partial<SchemaToData<T>>,
 		reference: {from: string; field: string; to: keyof T},
-		options?: {
-			returnField?: keyof T | (keyof T)[] | '*';
-			onConflict?: boolean;
-			idUser?: string;
-		}
+		options: InsertStepOptions<T>
 	): EnhancedChainedInsertBuilder {
 		super.insertWithReference(cteName, table, data, reference, options);
 		return this;
@@ -172,11 +169,7 @@ export class EnhancedChainedInsertBuilder extends ChainedInsertBuilder {
 		table: DatabaseOperations<T>,
 		data: Partial<SchemaToData<T>>,
 		reference: {from: string; field: string; to: keyof T},
-		options?: {
-			returnField?: keyof T | (keyof T)[] | '*';
-			onConflict?: boolean;
-			idUser?: string;
-		}
+		options: InsertStepOptions<T>
 	): EnhancedChainedInsertBuilder {
 		super.insertWithReferenceIf(condition, cteName, table, data, reference, options);
 		return this;
@@ -200,10 +193,7 @@ export class EnhancedChainedInsertBuilder extends ChainedInsertBuilder {
 		table: DatabaseOperations<T>,
 		data: Partial<SchemaToData<T>>,
 		where: Partial<SchemaToData<T>>,
-		options?: {
-			returnField?: keyof T | (keyof T)[] | '*';
-			idUser?: string;
-		}
+		options: UpdateStepOptions<T>
 	): EnhancedChainedInsertBuilder {
 		super.update(cteName, table, data, where, options);
 		return this;
@@ -219,10 +209,7 @@ export class EnhancedChainedInsertBuilder extends ChainedInsertBuilder {
 		data: Partial<SchemaToData<T>>,
 		where: Partial<SchemaToData<T>>,
 		reference: {from: string; field: string; to: keyof T},
-		options?: {
-			returnField?: keyof T | (keyof T)[] | '*';
-			idUser?: string;
-		}
+		options: UpdateStepOptions<T>
 	): EnhancedChainedInsertBuilder {
 		super.updateWithReference(cteName, table, data, where, reference, options);
 		return this;
@@ -238,10 +225,7 @@ export class EnhancedChainedInsertBuilder extends ChainedInsertBuilder {
 		table: DatabaseOperations<T>,
 		data: Partial<SchemaToData<T>>,
 		where: Partial<SchemaToData<T>>,
-		options?: {
-			returnField?: keyof T | (keyof T)[] | '*';
-			idUser?: string;
-		}
+		options: UpdateStepOptions<T>
 	): EnhancedChainedInsertBuilder {
 		super.updateIf(condition, cteName, table, data, where, options);
 		return this;
@@ -258,10 +242,7 @@ export class EnhancedChainedInsertBuilder extends ChainedInsertBuilder {
 		data: Partial<SchemaToData<T>>,
 		where: Partial<SchemaToData<T>>,
 		reference: {from: string; field: string; to: keyof T},
-		options?: {
-			returnField?: keyof T | (keyof T)[] | '*';
-			idUser?: string;
-		}
+		options: UpdateStepOptions<T>
 	): EnhancedChainedInsertBuilder {
 		super.updateWithReferenceIf(condition, cteName, table, data, where, reference, options);
 		return this;
@@ -274,11 +255,7 @@ export class EnhancedChainedInsertBuilder extends ChainedInsertBuilder {
 		cteName: string,
 		tableName: string,
 		data: Partial<SchemaToData<T>>,
-		options?: {
-			returnField?: keyof T | (keyof T)[] | '*';
-			onConflict?: boolean;
-			idUser?: string;
-		}
+		options: InsertStepOptions<T>
 	): EnhancedChainedInsertBuilder {
 		const table = this.registry.get<T>(tableName);
 		super.insert(cteName, table, data, options);
@@ -293,11 +270,7 @@ export class EnhancedChainedInsertBuilder extends ChainedInsertBuilder {
 		tableName: string,
 		data: Partial<SchemaToData<T>>,
 		reference: {from: string; field: string; to: keyof T},
-		options?: {
-			returnField?: keyof T | (keyof T)[] | '*';
-			onConflict?: boolean;
-			idUser?: string;
-		}
+		options: InsertStepOptions<T>
 	): EnhancedChainedInsertBuilder {
 		const table = this.registry.get<T>(tableName);
 		super.insertWithReference(cteName, table, data, reference, options);
@@ -313,11 +286,7 @@ export class EnhancedChainedInsertBuilder extends ChainedInsertBuilder {
 		tableName: string,
 		data: Partial<SchemaToData<T>>,
 		reference: {from: string; field: string; to: keyof T},
-		options?: {
-			returnField?: keyof T | (keyof T)[] | '*';
-			onConflict?: boolean;
-			idUser?: string;
-		}
+		options: InsertStepOptions<T>
 	): EnhancedChainedInsertBuilder {
 		if (condition) {
 			return this.insertIntoTableWithReference(cteName, tableName, data, reference, options);
@@ -333,10 +302,7 @@ export class EnhancedChainedInsertBuilder extends ChainedInsertBuilder {
 		tableName: string,
 		data: Partial<SchemaToData<T>>,
 		where: Partial<SchemaToData<T>>,
-		options?: {
-			returnField?: keyof T | (keyof T)[] | '*';
-			idUser?: string;
-		}
+		options: UpdateStepOptions<T>
 	): EnhancedChainedInsertBuilder {
 		const table = this.registry.get<T>(tableName);
 		super.update(cteName, table, data, where, options);
@@ -352,10 +318,7 @@ export class EnhancedChainedInsertBuilder extends ChainedInsertBuilder {
 		data: Partial<SchemaToData<T>>,
 		where: Partial<SchemaToData<T>>,
 		reference: {from: string; field: string; to: keyof T},
-		options?: {
-			returnField?: keyof T | (keyof T)[] | '*';
-			idUser?: string;
-		}
+		options: UpdateStepOptions<T>
 	): EnhancedChainedInsertBuilder {
 		const table = this.registry.get<T>(tableName);
 		super.updateWithReference(cteName, table, data, where, reference, options);
@@ -371,10 +334,7 @@ export class EnhancedChainedInsertBuilder extends ChainedInsertBuilder {
 		tableName: string,
 		data: Partial<SchemaToData<T>>,
 		where: Partial<SchemaToData<T>>,
-		options?: {
-			returnField?: keyof T | (keyof T)[] | '*';
-			idUser?: string;
-		}
+		options: UpdateStepOptions<T>
 	): EnhancedChainedInsertBuilder {
 		if (condition) {
 			return this.updateTable(cteName, tableName, data, where, options);

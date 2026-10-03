@@ -1,18 +1,46 @@
 import {Pool, PoolClient, PoolConfig, QueryResult} from 'pg';
-import {loggerMock} from 'mocklogs';
 import {QueryObject} from '../utils/query-utils';
+
+/** What the logger is told about one statement. It never holds bound values. */
+export interface QueryLogEntry {
+	/** The SQL text of the statement */
+	sqlText: string;
+	/** How long the statement took, in milliseconds */
+	durationMs: number;
+	/** The row count PostgreSQL reported. null when the statement failed or reports none. */
+	rowCount: number | null;
+	/** true when durationMs reached slowQueryMs */
+	slow: boolean;
+	/** true when the statement failed. The error itself goes to the caller, not to the logger. */
+	failed: boolean;
+}
+
+export type QueryLogger = (entry: QueryLogEntry) => void;
+
+export interface ConnectionOptions {
+	/** Called once for every statement the library sends. Without it the library prints nothing. */
+	logger?: QueryLogger;
+	/** A statement that takes this long, in milliseconds, is reported with slow: true. Defaults to 2000. */
+	slowQueryMs?: number;
+}
+
+const DEFAULT_SLOW_QUERY_MS = 2000;
 
 class PostgresConnection {
 	private static instance: PostgresConnection | undefined;
 	private pool: Pool;
+	private logger?: QueryLogger;
+	private slowQueryMs: number;
 
-	private constructor(config: PoolConfig) {
+	private constructor(config: PoolConfig, options: ConnectionOptions = {}) {
 		this.pool = new Pool(config);
+		this.logger = options.logger;
+		this.slowQueryMs = options.slowQueryMs ?? DEFAULT_SLOW_QUERY_MS;
 	}
 
-	public static initialize(config: PoolConfig): PostgresConnection {
+	public static initialize(config: PoolConfig, options?: ConnectionOptions): PostgresConnection {
 		if (!PostgresConnection.instance) {
-			PostgresConnection.instance = new PostgresConnection(config);
+			PostgresConnection.instance = new PostgresConnection(config, options);
 		}
 		return PostgresConnection.instance;
 	}
@@ -37,30 +65,41 @@ class PostgresConnection {
 		await instance.pool.end();
 	}
 
-	async query(text: any, queryParams?: any[]): Promise<QueryResult<any>> {
+	/**
+	 * Sends one statement and reports it to the logger.
+	 * The logger gets the SQL text, the duration and the row count. Bound values never reach it.
+	 */
+	private async run(text: any, send: () => Promise<QueryResult<any>>): Promise<QueryResult<any>> {
 		const start = Date.now();
-		const client = await this.pool.connect();
-		let duration = 0;
-
+		let rowCount: number | null = null;
+		let failed = true;
 		try {
-			const result = await client.query(text, queryParams);
-			duration = Date.now() - start;
-			console.log('Executed Query', {text: result.command, duration, rows: result.rowCount});
+			const result = await send();
+			rowCount = result.rowCount ?? null;
+			failed = false;
 			return result;
-		} catch (e: unknown) {
-			duration = Date.now() - start;
-			if (e instanceof Error) {
-				loggerMock.log({forceLog: true, message: ['databases.postgres.queries.query', 'Error: %s', e.message]});
-				loggerMock.log({forceLog: false, message: ['databases.postgres.queries.query', 'Error: %s', e.stack]});
-				throw e;
-			} else {
-				loggerMock.log({forceLog: true, message: ['databases.postgres.queries.query', 'Error: Unknown error']});
-				throw new Error('Unknown error during query execution');
-			}
 		} finally {
-			if (duration >= 2000) {
-				console.warn(`[SLOW ${duration}ms] ${text} :: ${JSON.stringify(queryParams)}`);
-			}
+			this.report(text, Date.now() - start, rowCount, failed);
+		}
+	}
+
+	private report(text: any, durationMs: number, rowCount: number | null, failed: boolean): void {
+		if (!this.logger) {
+			return;
+		}
+		const sqlText = typeof text === 'string' ? text : String(text?.text ?? '');
+		try {
+			this.logger({sqlText, durationMs, rowCount, slow: durationMs >= this.slowQueryMs, failed});
+		} catch (loggerError) {
+			// A failing logger must not fail the query.
+		}
+	}
+
+	async query(text: any, queryParams?: any[]): Promise<QueryResult<any>> {
+		const client = await this.pool.connect();
+		try {
+			return await this.run(text, () => client.query(text, queryParams));
+		} finally {
 			client.release();
 		}
 	}
@@ -75,16 +114,17 @@ class PostgresConnection {
 		let rollbackError: Error | undefined;
 
 		try {
-			await client.query('BEGIN');
+			await this.run('BEGIN', () => client.query('BEGIN'));
 			const result = await work(client);
-			await client.query('COMMIT');
+			await this.run('COMMIT', () => client.query('COMMIT'));
 			return result;
 		} catch (e) {
 			try {
-				await client.query('ROLLBACK');
+				await this.run('ROLLBACK', () => client.query('ROLLBACK'));
 			} catch (rollbackFailure) {
 				rollbackError = rollbackFailure instanceof Error ? rollbackFailure : new Error(String(rollbackFailure));
 			}
+			// The original error is rethrown, so a pg error keeps its code.
 			throw e;
 		} finally {
 			client.release(rollbackError);
@@ -98,48 +138,20 @@ class PostgresConnection {
 	async transaction(queries: QueryObject[]): Promise<QueryResult<any>[]>;
 	async transaction(text: any, queryParams: any): Promise<QueryResult<any>>;
 	async transaction(textOrQueries: any, queryParams?: any): Promise<QueryResult<any> | QueryResult<any>[]> {
-		const start = Date.now();
-		let duration = 0;
-
-		try {
-			if (Array.isArray(textOrQueries)) {
-				const queries: QueryObject[] = textOrQueries;
-				const results = await this.runOnOneClient(async (client) => {
-					const collected: QueryResult<any>[] = [];
-					for (const queryObject of queries) {
-						collected.push(await client.query(queryObject.sqlText, queryObject.values));
-					}
-					return collected;
-				});
-				duration = Date.now() - start;
-				console.log('Executed Transaction', {queries: results.length, duration});
-				return results;
-			}
-
-			const result = await this.runOnOneClient((client) => client.query(textOrQueries, queryParams));
-			duration = Date.now() - start;
-			console.log('Executed Transaction', {text: result.command, duration, rows: result.rowCount});
-			return result;
-		} catch (e) {
-			duration = Date.now() - start;
-			if (e instanceof Error) {
-				loggerMock.log({forceLog: true, message: ['databases.postgres.queries.query', 'error: %s', e.message]});
-				loggerMock.log({forceLog: false, message: ['databases.postgres.queries.query', 'error: %s', e.stack]});
-				console.error('Transaction Error:', e.message);
-			} else {
-				loggerMock.log({forceLog: true, message: ['databases.postgres.queries.query', 'error: %s', 'Unknown error']});
-			}
-			// The original error is rethrown, so a pg error keeps its code.
-			throw e;
-		} finally {
-			if (duration >= 2000) {
-				if (Array.isArray(textOrQueries)) {
-					console.warn(`[SLOW ${duration}ms] transaction of ${textOrQueries.length} queries`);
-				} else {
-					console.warn(`[SLOW ${duration}ms] ${textOrQueries} :: ${JSON.stringify(queryParams)}`);
+		if (Array.isArray(textOrQueries)) {
+			const queries: QueryObject[] = textOrQueries;
+			return this.runOnOneClient(async (client) => {
+				const collected: QueryResult<any>[] = [];
+				for (const queryObject of queries) {
+					collected.push(
+						await this.run(queryObject.sqlText, () => client.query(queryObject.sqlText, queryObject.values))
+					);
 				}
-			}
+				return collected;
+			});
 		}
+
+		return this.runOnOneClient((client) => this.run(textOrQueries, () => client.query(textOrQueries, queryParams)));
 	}
 
 	public static async query(text: any, queryParams?: any[]): Promise<QueryResult<any>> {

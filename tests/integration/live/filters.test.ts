@@ -7,13 +7,10 @@ import {
 	fixtureTablesDdl,
 	userSettingsTable,
 	userSettingsDdl,
-	silenceLibraryLogs,
 	LiveSchema,
 } from './live-setup';
 
 describeLive('live: filters, sorting and paging', () => {
-	silenceLibraryLogs();
-
 	let schema: LiveSchema;
 	const usersTable = new UsersTable();
 	const userSettingsDb = new DatabaseOperations(userSettingsTable);

@@ -40,14 +40,14 @@ class AddressesTable extends TableBase<AddressesSchema> {
 		allowedColumns: (keyof AddressesSchema)[] | '*',
 		options?: {
 			where?: QueryParams<AddressesSchema>;
-			alias?: string;
+			ignoreUnknownKeys?: boolean;
 		}
 	): QueryResult<Partial<AddressesData>[]> {
 		return this.select<AddressesData>({
 			allowedColumns,
 			options: {
 				where: options?.where,
-				alias: options?.alias,
+				ignoreUnknownKeys: options?.ignoreUnknownKeys,
 			},
 		});
 	}

@@ -11,37 +11,26 @@ import {QueryArrayResult, QueryResult} from 'pg';
  *
  * @returns An array of result rows.
  *
- * @throws Throws an error if the query fails.
+ * @throws Rethrows the error of a failed query unchanged.
  */
 export async function executeSelectQuery<T>(sqlText: string, values: any[]): Promise<T[]> {
-	try {
-		const result = await dbpg.query(sqlText, values);
-		return result.rows;
-	} catch (error: any) {
-		console.error('Error executing select query:', error.message);
-		throw error;
-	}
+	const result = await dbpg.query(sqlText, values);
+	return result.rows;
 }
 
 /**
- * Executes the provided SQL INSERT query and handles unique constraint violations.
+ * Executes the provided SQL INSERT query.
  *
  * @param sqlText - The SQL INSERT query string to be executed.
+ * @param values - An array of values for parameterized queries.
  *
- * @returns The first row of the result if the query is successful, or undefined if a unique constraint violation occurs.
+ * @returns The rows of the RETURNING clause.
  *
- * @throws Throws an error if the query fails for reasons other than unique constraint violations.
+ * @throws Rethrows the error of a failed query unchanged, for example a unique violation with its code.
  */
 export async function executeInsertQuery<T>(sqlText: string, values: any[]): Promise<T[]> {
-	try {
-		const result = await dbpg.query(sqlText, values);
-		return result.rows;
-	} catch (error: any) {
-		if (error.message.includes('violates unique constraint')) {
-			console.log('Duplicate key detected:', error.message);
-		}
-		throw error;
-	}
+	const result = await dbpg.query(sqlText, values);
+	return result.rows;
 }
 
 /**
@@ -67,23 +56,11 @@ export async function executeTransactionQuery(queryObjects: QueryObject[] = []):
  *
  * @returns An array of updated rows (if RETURNING clause is used).
  *
- * @throws Throws an error if the query fails.
+ * @throws Rethrows the error of a failed query unchanged.
  */
 export async function executeUpdateQuery<T>(sqlText: string, values: any[]): Promise<T[]> {
-	try {
-		const result = await dbpg.query(sqlText, values);
-		return result.rows;
-	} catch (error: any) {
-		if (error.message.includes('violates unique constraint')) {
-			console.log('Unique constraint violation during update:', error.message);
-		} else if (error.message.includes('violates foreign key constraint')) {
-			console.log('Foreign key constraint violation during update:', error.message);
-		} else if (error.message.includes('violates check constraint')) {
-			console.log('Check constraint violation during update:', error.message);
-		}
-		console.error('Error executing update query:', error.message);
-		throw error;
-	}
+	const result = await dbpg.query(sqlText, values);
+	return result.rows;
 }
 
 export default {

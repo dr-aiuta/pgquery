@@ -185,7 +185,7 @@ class ECommerceOrderService extends EnhancedTableBase<OrdersSchema> {
 		};
 
 		let builder = this.createChainedInsert()
-			.insert('new_order', this.db, orderData, {returnField: '*'})
+			.insert('new_order', this.db, orderData, {allowedColumns: '*', returnField: '*'})
 			.insertWithReference(
 				'order_payment',
 				this.getRelatedTable('payments'),
@@ -197,7 +197,8 @@ class ECommerceOrderService extends EnhancedTableBase<OrdersSchema> {
 					from: 'new_order',
 					field: 'id',
 					to: 'orderId',
-				}
+				},
+				{allowedColumns: '*'}
 			);
 
 		// Add order items
@@ -206,7 +207,7 @@ class ECommerceOrderService extends EnhancedTableBase<OrdersSchema> {
 				from: 'new_order',
 				field: 'id',
 				to: 'orderId',
-			});
+			}, {allowedColumns: '*'});
 		});
 
 		// Conditionally add shipping
@@ -222,7 +223,8 @@ class ECommerceOrderService extends EnhancedTableBase<OrdersSchema> {
 					from: 'new_order',
 					field: 'id',
 					to: 'orderId',
-				}
+				},
+				{allowedColumns: '*'}
 			);
 		}
 
@@ -264,7 +266,7 @@ class LMSCourseService extends EnhancedTableBase<CoursesSchema> {
 				...courseData,
 				status: 'active',
 			},
-			{returnField: '*'}
+			{allowedColumns: '*', returnField: '*'}
 		);
 
 		// Auto-enroll instructor
@@ -280,7 +282,8 @@ class LMSCourseService extends EnhancedTableBase<CoursesSchema> {
 					from: 'new_course',
 					field: 'id',
 					to: 'courseId',
-				}
+				},
+				{allowedColumns: '*'}
 			);
 		}
 
@@ -294,7 +297,8 @@ class LMSCourseService extends EnhancedTableBase<CoursesSchema> {
 					from: 'new_course',
 					field: 'id',
 					to: 'courseId',
-				}
+				},
+				{allowedColumns: '*'}
 			);
 		});
 
@@ -307,7 +311,7 @@ class LMSCourseService extends EnhancedTableBase<CoursesSchema> {
 	public enrollStudentsInCourse(courseId: number, studentIds: number[]) {
 		const coursesDb = new DatabaseOperations(coursesTableDef);
 
-		let builder = createChainedInsert().insert('course_ref', coursesDb, {id: courseId}, {returnField: '*'});
+		let builder = createChainedInsert().insert('course_ref', coursesDb, {id: courseId}, {allowedColumns: '*', returnField: '*'});
 
 		studentIds.forEach((studentId, index) => {
 			builder = builder.insertWithReference(
@@ -321,7 +325,8 @@ class LMSCourseService extends EnhancedTableBase<CoursesSchema> {
 					from: 'course_ref',
 					field: 'id',
 					to: 'courseId',
-				}
+				},
+				{allowedColumns: '*'}
 			);
 		});
 

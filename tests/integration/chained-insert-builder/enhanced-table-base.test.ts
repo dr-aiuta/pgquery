@@ -48,23 +48,23 @@ class TestUsersTable extends EnhancedTableBase<UsersSchema> {
 		};
 
 		return this.createChainedInsert()
-			.insert('new_user', this.db, userData, {returnField: '*'})
+			.insert('new_user', this.db, userData, {allowedColumns: '*', returnField: '*'})
 			.insertWithReferenceIf(includePost, 'user_post', this.getRelatedTable('posts'), postData, {
 				from: 'new_user',
 				field: 'id',
 				to: 'userId',
-			})
+			}, {allowedColumns: '*'})
 			.insertWithReferenceIf(includeAddress, 'user_address', this.getRelatedTable('addresses'), addressData, {
 				from: 'new_user',
 				field: 'id',
 				to: 'userId',
-			})
+			}, {allowedColumns: '*'})
 			.selectFrom('new_user')
 			.build();
 	}
 
 	public createUserWithMultiplePosts(userData: Partial<UsersData>, postTitles: string[]) {
-		let builder = this.createChainedInsert().insert('new_user', this.db, userData, {returnField: '*'});
+		let builder = this.createChainedInsert().insert('new_user', this.db, userData, {allowedColumns: '*', returnField: '*'});
 
 		postTitles.forEach((title, index) => {
 			const postData: Partial<PostsData> = {
@@ -76,7 +76,7 @@ class TestUsersTable extends EnhancedTableBase<UsersSchema> {
 				from: 'new_user',
 				field: 'id',
 				to: 'userId',
-			});
+			}, {allowedColumns: '*'});
 		});
 
 		return builder.selectFrom('new_user').build();
@@ -109,7 +109,7 @@ class TestBlogTable extends EnhancedTableBase<PostsSchema> {
 
 	public createBlogPostWithAuthor(authorData: Partial<UsersData>, postData: Partial<PostsData>) {
 		return this.createChainedInsert()
-			.insert('new_author', this.getRelatedTable('users'), authorData, {returnField: '*'})
+			.insert('new_author', this.getRelatedTable('users'), authorData, {allowedColumns: '*', returnField: '*'})
 			.insertWithReference(
 				'new_post',
 				this.db,
@@ -119,7 +119,7 @@ class TestBlogTable extends EnhancedTableBase<PostsSchema> {
 					field: 'id',
 					to: 'userId',
 				},
-				{returnField: '*'}
+				{allowedColumns: '*', returnField: '*'}
 			)
 			.selectFrom('new_post')
 			.build();

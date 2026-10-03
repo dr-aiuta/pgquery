@@ -41,7 +41,7 @@ describe('ChainedInsertBuilder - SQL Generation Tests', () => {
 			};
 
 			const chainedInsert = createChainedInsert()
-				.insert('new_user', usersDb, userData, {returnField: '*'})
+				.insert('new_user', usersDb, userData, {allowedColumns: '*', returnField: '*'})
 				.selectFrom('new_user')
 				.build();
 
@@ -62,12 +62,12 @@ describe('ChainedInsertBuilder - SQL Generation Tests', () => {
 			const postData: Partial<PostsData> = {title: 'Multi Post', content: 'Multi Content'};
 
 			const chainedInsert = createChainedInsert()
-				.insert('user_cte', usersDb, userData, {returnField: '*'})
+				.insert('user_cte', usersDb, userData, {allowedColumns: '*', returnField: '*'})
 				.insertWithReference('post_cte', postsDb, postData, {
 					from: 'user_cte',
 					field: 'id',
 					to: 'userId',
-				})
+				}, {allowedColumns: '*'})
 				.selectFrom('user_cte')
 				.build();
 
@@ -89,12 +89,12 @@ describe('ChainedInsertBuilder - SQL Generation Tests', () => {
 			const postData: Partial<PostsData> = {title: 'Param Post', content: 'Param Content'};
 
 			const chainedInsert = createChainedInsert()
-				.insert('user_cte', usersDb, userData, {returnField: '*'})
+				.insert('user_cte', usersDb, userData, {allowedColumns: '*', returnField: '*'})
 				.insertWithReference('post_cte', postsDb, postData, {
 					from: 'user_cte',
 					field: 'id',
 					to: 'userId',
-				})
+				}, {allowedColumns: '*'})
 				.build();
 
 			const {sqlText, values} = chainedInsert.queries[0];
@@ -119,18 +119,18 @@ describe('ChainedInsertBuilder - SQL Generation Tests', () => {
 			const post2: Partial<PostsData> = {title: 'Post 2', content: 'Content 2'};
 
 			const chainedInsert = createChainedInsert()
-				.insert('user1', usersDb, user1, {returnField: '*'})
-				.insert('user2', usersDb, user2, {returnField: '*'})
+				.insert('user1', usersDb, user1, {allowedColumns: '*', returnField: '*'})
+				.insert('user2', usersDb, user2, {allowedColumns: '*', returnField: '*'})
 				.insertWithReference('post1', postsDb, post1, {
 					from: 'user1',
 					field: 'id',
 					to: 'userId',
-				})
+				}, {allowedColumns: '*'})
 				.insertWithReference('post2', postsDb, post2, {
 					from: 'user2',
 					field: 'id',
 					to: 'userId',
-				})
+				}, {allowedColumns: '*'})
 				.build();
 
 			const {sqlText, values} = chainedInsert.queries[0];
@@ -149,7 +149,7 @@ describe('ChainedInsertBuilder - SQL Generation Tests', () => {
 		it('should properly quote table names', () => {
 			const userData: Partial<UsersData> = {name: 'Quote Test', email: 'quote@example.com'};
 
-			const chainedInsert = createChainedInsert().insert('test_user', usersDb, userData, {returnField: '*'}).build();
+			const chainedInsert = createChainedInsert().insert('test_user', usersDb, userData, {allowedColumns: '*', returnField: '*'}).build();
 
 			const sql = chainedInsert.queries[0].sqlText;
 
@@ -160,7 +160,7 @@ describe('ChainedInsertBuilder - SQL Generation Tests', () => {
 		it('should properly quote column names', () => {
 			const userData: Partial<UsersData> = {name: 'Column Test', email: 'column@example.com'};
 
-			const chainedInsert = createChainedInsert().insert('test_user', usersDb, userData, {returnField: '*'}).build();
+			const chainedInsert = createChainedInsert().insert('test_user', usersDb, userData, {allowedColumns: '*', returnField: '*'}).build();
 
 			const sql = chainedInsert.queries[0].sqlText;
 
@@ -174,12 +174,12 @@ describe('ChainedInsertBuilder - SQL Generation Tests', () => {
 			const postData: Partial<PostsData> = {title: 'Ref Post', content: 'Ref Content'};
 
 			const chainedInsert = createChainedInsert()
-				.insert('ref_user', usersDb, userData, {returnField: '*'})
+				.insert('ref_user', usersDb, userData, {allowedColumns: '*', returnField: '*'})
 				.insertWithReference('ref_post', postsDb, postData, {
 					from: 'ref_user',
 					field: 'id',
 					to: 'userId',
-				})
+				}, {allowedColumns: '*'})
 				.build();
 
 			const sql = chainedInsert.queries[0].sqlText;
@@ -195,13 +195,13 @@ describe('ChainedInsertBuilder - SQL Generation Tests', () => {
 
 			// Test specific field return
 			const specificReturn = createChainedInsert()
-				.insert('test_user_id', usersDb, userData, {returnField: 'id'})
+				.insert('test_user_id', usersDb, userData, {allowedColumns: '*', returnField: 'id'})
 				.build();
 
 			expect(specificReturn.queries[0].sqlText).toContain('RETURNING "id"');
 
 			// Test all fields return
-			const allReturn = createChainedInsert().insert('test_user_all', usersDb, userData, {returnField: '*'}).build();
+			const allReturn = createChainedInsert().insert('test_user_all', usersDb, userData, {allowedColumns: '*', returnField: '*'}).build();
 
 			expect(allReturn.queries[0].sqlText).toContain('RETURNING *');
 		});
@@ -213,7 +213,7 @@ describe('ChainedInsertBuilder - SQL Generation Tests', () => {
 
 			// Test specific column select
 			const specificSelect = createChainedInsert()
-				.insert('test_user', usersDb, userData, {returnField: '*'})
+				.insert('test_user', usersDb, userData, {allowedColumns: '*', returnField: '*'})
 				.selectFrom('test_user', 'id')
 				.build();
 
@@ -221,7 +221,7 @@ describe('ChainedInsertBuilder - SQL Generation Tests', () => {
 
 			// Test all columns select
 			const allSelect = createChainedInsert()
-				.insert('test_user', usersDb, userData, {returnField: '*'})
+				.insert('test_user', usersDb, userData, {allowedColumns: '*', returnField: '*'})
 				.selectFrom('test_user', '*')
 				.build();
 
@@ -229,7 +229,7 @@ describe('ChainedInsertBuilder - SQL Generation Tests', () => {
 
 			// Test default select (should default to *)
 			const defaultSelect = createChainedInsert()
-				.insert('test_user', usersDb, userData, {returnField: '*'})
+				.insert('test_user', usersDb, userData, {allowedColumns: '*', returnField: '*'})
 				.selectFrom('test_user')
 				.build();
 
@@ -242,7 +242,7 @@ describe('ChainedInsertBuilder - SQL Generation Tests', () => {
 			const userData: Partial<UsersData> = {name: 'Simple User', email: 'simple@example.com'};
 
 			const chainedInsert = createChainedInsert()
-				.insert('simple_user', usersDb, userData, {returnField: '*', idUser: 'SERVER'})
+				.insert('simple_user', usersDb, userData, {allowedColumns: '*', returnField: '*', idUser: 'SERVER'})
 				.selectFrom('simple_user')
 				.build();
 
@@ -263,7 +263,7 @@ describe('ChainedInsertBuilder - SQL Generation Tests', () => {
 			const userData: Partial<UsersData> = {name: 'Simple User', email: 'simple@example.com'};
 
 			const chainedInsert = createChainedInsert()
-				.insert('simple_user', usersDb, userData, {returnField: '*'})
+				.insert('simple_user', usersDb, userData, {allowedColumns: '*', returnField: '*'})
 				.selectFrom('simple_user')
 				.build();
 
@@ -285,7 +285,7 @@ describe('ChainedInsertBuilder - SQL Generation Tests', () => {
 			const postData: Partial<PostsData> = {title: 'Ref Post', content: 'Ref Content'};
 
 			const chainedInsert = createChainedInsert()
-				.insert('ref_user', usersDb, userData, {returnField: '*', idUser: 'SERVER'})
+				.insert('ref_user', usersDb, userData, {allowedColumns: '*', returnField: '*', idUser: 'SERVER'})
 				.insertWithReference(
 					'ref_post',
 					postsDb,
@@ -295,7 +295,7 @@ describe('ChainedInsertBuilder - SQL Generation Tests', () => {
 						field: 'id',
 						to: 'userId',
 					},
-					{idUser: 'SERVER'}
+					{allowedColumns: '*', idUser: 'SERVER'}
 				)
 				.selectFrom('ref_user')
 				.build();
@@ -331,12 +331,12 @@ describe('ChainedInsertBuilder - SQL Generation Tests', () => {
 			const postData: Partial<PostsData> = {title: 'Ref Post', content: 'Ref Content'};
 
 			const chainedInsert = createChainedInsert()
-				.insert('ref_user', usersDb, userData, {returnField: '*'})
+				.insert('ref_user', usersDb, userData, {allowedColumns: '*', returnField: '*'})
 				.insertWithReference('ref_post', postsDb, postData, {
 					from: 'ref_user',
 					field: 'id',
 					to: 'userId',
-				})
+				}, {allowedColumns: '*'})
 				.selectFrom('ref_user')
 				.build();
 
@@ -375,7 +375,7 @@ describe('ChainedInsertBuilder - SQL Generation Tests', () => {
 			};
 
 			const chainedInsert = createChainedInsert()
-				.insert('safe_user', usersDb, maliciousData, {returnField: '*'})
+				.insert('safe_user', usersDb, maliciousData, {allowedColumns: '*', returnField: '*'})
 				.build();
 
 			const {sqlText, values} = chainedInsert.queries[0];
@@ -397,7 +397,7 @@ describe('ChainedInsertBuilder - SQL Generation Tests', () => {
 			const emptyData: Partial<UsersData> = {};
 
 			const chainedInsert = createChainedInsert()
-				.insert('empty_user', usersDb, emptyData, {returnField: '*', idUser: 'SERVER'})
+				.insert('empty_user', usersDb, emptyData, {allowedColumns: '*', returnField: '*', idUser: 'SERVER'})
 				.build();
 
 			const sql = chainedInsert.queries[0].sqlText;
@@ -412,7 +412,7 @@ describe('ChainedInsertBuilder - SQL Generation Tests', () => {
 		it('should handle empty data objects with default lastChangedBy', () => {
 			const emptyData: Partial<UsersData> = {};
 
-			const chainedInsert = createChainedInsert().insert('empty_user', usersDb, emptyData, {returnField: '*'}).build();
+			const chainedInsert = createChainedInsert().insert('empty_user', usersDb, emptyData, {allowedColumns: '*', returnField: '*'}).build();
 
 			const sql = chainedInsert.queries[0].sqlText;
 
@@ -427,7 +427,7 @@ describe('ChainedInsertBuilder - SQL Generation Tests', () => {
 			const userData: Partial<UsersData> = {name: 'Special User', email: 'special@example.com'};
 
 			const chainedInsert = createChainedInsert()
-				.insert('special_user_123', usersDb, userData, {returnField: '*'})
+				.insert('special_user_123', usersDb, userData, {allowedColumns: '*', returnField: '*'})
 				.selectFrom('special_user_123')
 				.build();
 

@@ -1,4 +1,4 @@
-// Main exports for pg-lightquery
+// Main exports for pg-lightquery. Every export has one name.
 // ✅ COMPOSITION-BASED API (RECOMMENDED)
 export {TableBase} from './core/table-base';
 export {EnhancedTableBase} from './core/table-base-extensions';
@@ -8,6 +8,10 @@ export {EnhancedTableBase} from './core/table-base-extensions';
 
 // Database connection
 export {default as PostgresConnection} from './connection/postgres-connection';
+export type {ConnectionOptions, QueryLogger, QueryLogEntry} from './connection/postgres-connection';
+
+// The error thrown for every input the library rejects. Errors from PostgreSQL pass through unchanged.
+export {QueryInputError} from './utils/query-input-error';
 
 // Types exports
 export type {
@@ -28,17 +32,7 @@ export type {
 } from './types';
 export type {RequireExactlyOne, UniqueArray, InArray} from './types/utility-types';
 
-// Shared utilities
-export * as pgUtilsDb from './utils/query-utils';
-export * as pgUtilsHelpers from './utils/helpers';
-
 export type {QueryObject} from './utils/query-utils';
-
-// CTE (Common Table Expression) features
-export {EnhancedCTEBuilder, createEnhancedCTE} from './utils/enhanced-cte-builder';
-export type {CTEReference, CTEConfig} from './utils/enhanced-cte-builder';
-export {CTETransactionBuilder, createCTETransaction} from './utils/cte-transaction-builder';
-export type {CTEStep, CTEInsertConfig} from './utils/cte-transaction-builder';
 
 // Marks an SQL expression, for example a column default: sqlExpression('now()').
 // checkSchemaDrift and generateMigration are served from 'pg-lightquery/schema'.
@@ -47,9 +41,4 @@ export type {SqlExpression} from './utils/sql-expression';
 
 // Chained Insert features
 export {ChainedInsertBuilder, createChainedInsert} from './utils/chained-insert-builder';
-
-// Main export is now TableBase
-export {TableBase as default} from './core/table-base';
-
-// ✅ Also export TableBase as QueryBuilder alias for convenience
-export {TableBase as QueryBuilder} from './core/table-base';
+export type {InsertStepOptions, UpdateStepOptions} from './utils/chained-insert-builder';

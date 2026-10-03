@@ -38,7 +38,7 @@ class TestUsersTable extends EnhancedTableBase<UsersSchema> {
 		let chainedBuilder = this.createChainedInsert();
 
 		// Update user
-		chainedBuilder = chainedBuilder.update('user_update', this.db, userData, {id: userId}, {returnField: '*'});
+		chainedBuilder = chainedBuilder.update('user_update', this.db, userData, {id: userId}, {allowedColumns: '*', returnField: '*'});
 
 		// Update post if provided
 		if (postData) {
@@ -47,7 +47,7 @@ class TestUsersTable extends EnhancedTableBase<UsersSchema> {
 				'posts',
 				postData.data,
 				{id: postData.id},
-				{returnField: '*'}
+				{allowedColumns: '*', returnField: '*'}
 			);
 		}
 
@@ -58,7 +58,7 @@ class TestUsersTable extends EnhancedTableBase<UsersSchema> {
 				'addresses',
 				addressData.data,
 				{id: addressData.id},
-				{returnField: '*'}
+				{allowedColumns: '*', returnField: '*'}
 			);
 		}
 
@@ -69,7 +69,7 @@ class TestUsersTable extends EnhancedTableBase<UsersSchema> {
 		return (
 			this.createChainedInsert()
 				// Insert new user
-				.insert('new_user', this.db, newUserData, {returnField: '*'})
+				.insert('new_user', this.db, newUserData, {allowedColumns: '*', returnField: '*'})
 				// Update existing post with new user's ID
 				.updateTableWithReference(
 					'updated_post',
@@ -77,7 +77,7 @@ class TestUsersTable extends EnhancedTableBase<UsersSchema> {
 					postUpdate,
 					{id: existingPostId},
 					{from: 'new_user', field: 'id', to: 'userId'},
-					{returnField: '*'}
+					{allowedColumns: '*', returnField: '*'}
 				)
 				.selectFrom('new_user')
 				.build()
@@ -91,14 +91,14 @@ class TestUsersTable extends EnhancedTableBase<UsersSchema> {
 		postData?: {id: number; data: Partial<PostsData>}
 	) {
 		return this.createChainedInsert()
-			.update('user_update', this.db, userData, {id: userId}, {returnField: '*'})
+			.update('user_update', this.db, userData, {id: userId}, {allowedColumns: '*', returnField: '*'})
 			.updateTableIf(
 				shouldUpdatePost && !!postData,
 				'post_update',
 				'posts',
 				postData?.data || {},
 				{id: postData?.id || 0},
-				{returnField: '*'}
+				{allowedColumns: '*', returnField: '*'}
 			)
 			.selectFrom('user_update')
 			.build();
@@ -107,16 +107,17 @@ class TestUsersTable extends EnhancedTableBase<UsersSchema> {
 	// Public method to test type safety and method chaining
 	public testTypeSafety() {
 		return this.createChainedInsert()
-			.insert('user1', this.db, {name: 'User 1'}, {returnField: '*'})
-			.insertIntoTable('user2', 'posts', {title: 'Post 1'}, {returnField: '*'})
-			.update('user3', this.db, {name: 'Updated'}, {id: 1})
-			.updateTable('post1', 'posts', {title: 'Updated'}, {id: 1})
+			.insert('user1', this.db, {name: 'User 1'}, {allowedColumns: '*', returnField: '*'})
+			.insertIntoTable('user2', 'posts', {title: 'Post 1'}, {allowedColumns: '*', returnField: '*'})
+			.update('user3', this.db, {name: 'Updated'}, {id: 1}, {allowedColumns: '*'})
+			.updateTable('post1', 'posts', {title: 'Updated'}, {id: 1}, {allowedColumns: '*'})
 			.updateTableWithReference(
 				'post2',
 				'posts',
 				{content: 'New content'},
 				{id: 2},
-				{from: 'user1', field: 'id', to: 'userId'}
+				{from: 'user1', field: 'id', to: 'userId'},
+				{allowedColumns: '*'}
 			)
 			.selectFrom('user1');
 	}
@@ -252,7 +253,7 @@ describe('EnhancedTableBase - Update Operations', () => {
 				}
 
 				public testUnregisteredTable() {
-					return this.createChainedInsert().updateTable('update1', 'unregistered_table', {}, {id: 1}).build();
+					return this.createChainedInsert().updateTable('update1', 'unregistered_table', {}, {id: 1}, {allowedColumns: '*'}).build();
 				}
 			}
 

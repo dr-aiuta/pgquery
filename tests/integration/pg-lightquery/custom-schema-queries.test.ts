@@ -162,7 +162,8 @@ describe('Table Operations - Custom Schema Queries', () => {
 		});
 
 		it('returns query object that can be inspected before execution', async () => {
-			const selectResult = usersTable.selectUserDetails(['id', 'name', 'email'], {
+			// "posts" is on the allow-list, so the filter is applied. A key outside the list now throws.
+			const selectResult = usersTable.selectUserDetails(['id', 'name', 'email', 'posts'], {
 				where: {
 					'posts.not': null, // Filter for users who have posts
 				},
@@ -277,7 +278,8 @@ describe('Table Operations - Custom Schema Queries', () => {
 			// Verify the query parameters
 			expect(dbpg.query).toHaveBeenCalledWith(
 				expect.stringContaining('WITH user_posts AS'),
-				expect.arrayContaining([1, 2, 3, null, null])
+				// The id list is one array parameter.
+				[[1, 2, 3], null, null]
 			);
 		});
 	});

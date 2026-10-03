@@ -53,7 +53,7 @@ describe('ChainedInsertBuilder - Reusability Tests', () => {
 			(dbpg.query as jest.Mock).mockResolvedValue(createMockQueryResult([expectedUser]));
 
 			const chainedInsert = createChainedInsert()
-				.insert('new_user', usersDb, userData, {returnField: '*'})
+				.insert('new_user', usersDb, userData, {allowedColumns: '*', returnField: '*'})
 				.selectFrom('new_user')
 				.build();
 
@@ -79,8 +79,8 @@ describe('ChainedInsertBuilder - Reusability Tests', () => {
 			(dbpg.query as jest.Mock).mockResolvedValue(createMockQueryResult(expectedResults));
 
 			const chainedInsert = createChainedInsert()
-				.insert('user1', usersDb, userData, {returnField: '*'})
-				.insert('user2', usersDb, userData2, {returnField: '*'})
+				.insert('user1', usersDb, userData, {allowedColumns: '*', returnField: '*'})
+				.insert('user2', usersDb, userData2, {allowedColumns: '*', returnField: '*'})
 				.selectFrom('user1')
 				.build();
 
@@ -103,7 +103,7 @@ describe('ChainedInsertBuilder - Reusability Tests', () => {
 			(dbpg.query as jest.Mock).mockResolvedValue(createMockQueryResult([expectedUser]));
 
 			const chainedInsert = createChainedInsert()
-				.insert('new_user', usersDb, userData, {returnField: '*'})
+				.insert('new_user', usersDb, userData, {allowedColumns: '*', returnField: '*'})
 				.insertWithReference(
 					'new_post',
 					postsDb,
@@ -113,7 +113,7 @@ describe('ChainedInsertBuilder - Reusability Tests', () => {
 						field: 'id',
 						to: 'userId',
 					},
-					{returnField: '*'}
+					{allowedColumns: '*', returnField: '*'}
 				)
 				.selectFrom('new_user')
 				.build();
@@ -142,17 +142,17 @@ describe('ChainedInsertBuilder - Reusability Tests', () => {
 			(dbpg.query as jest.Mock).mockResolvedValue(createMockQueryResult([expectedUser]));
 
 			const chainedInsert = createChainedInsert()
-				.insert('new_user', usersDb, userData, {returnField: '*'})
+				.insert('new_user', usersDb, userData, {allowedColumns: '*', returnField: '*'})
 				.insertWithReference('new_post', postsDb, postData, {
 					from: 'new_user',
 					field: 'id',
 					to: 'userId',
-				})
+				}, {allowedColumns: '*'})
 				.insertWithReference('new_address', addressesDb, addressData, {
 					from: 'new_user',
 					field: 'id',
 					to: 'userId',
-				})
+				}, {allowedColumns: '*'})
 				.selectFrom('new_user')
 				.build();
 
@@ -183,12 +183,12 @@ describe('ChainedInsertBuilder - Reusability Tests', () => {
 			(dbpg.query as jest.Mock).mockResolvedValue(createMockQueryResult([expectedUser]));
 
 			const chainedInsert = createChainedInsert()
-				.insert('new_user', usersDb, userData, {returnField: '*'})
+				.insert('new_user', usersDb, userData, {allowedColumns: '*', returnField: '*'})
 				.insertWithReferenceIf(shouldCreatePost, 'new_post', postsDb, postData, {
 					from: 'new_user',
 					field: 'id',
 					to: 'userId',
-				})
+				}, {allowedColumns: '*'})
 				.selectFrom('new_user')
 				.build();
 
@@ -210,12 +210,12 @@ describe('ChainedInsertBuilder - Reusability Tests', () => {
 			(dbpg.query as jest.Mock).mockResolvedValue(createMockQueryResult([expectedUser]));
 
 			const chainedInsert = createChainedInsert()
-				.insert('new_user', usersDb, userData, {returnField: '*'})
+				.insert('new_user', usersDb, userData, {allowedColumns: '*', returnField: '*'})
 				.insertWithReferenceIf(shouldCreatePost, 'new_post', postsDb, postData, {
 					from: 'new_user',
 					field: 'id',
 					to: 'userId',
-				})
+				}, {allowedColumns: '*'})
 				.selectFrom('new_user')
 				.build();
 
@@ -236,7 +236,7 @@ describe('ChainedInsertBuilder - Reusability Tests', () => {
 			(dbpg.query as jest.Mock).mockResolvedValue(createMockQueryResult([expectedId]));
 
 			const chainedInsert = createChainedInsert()
-				.insert('new_user', usersDb, userData, {returnField: 'id'})
+				.insert('new_user', usersDb, userData, {allowedColumns: '*', returnField: 'id'})
 				.selectFrom('new_user', 'id')
 				.build();
 
@@ -260,7 +260,7 @@ describe('ChainedInsertBuilder - Reusability Tests', () => {
 			(dbpg.query as jest.Mock).mockResolvedValue(createMockQueryResult([expectedUser]));
 
 			const chainedInsert = createChainedInsert()
-				.insert('new_user', usersDb, userData, {returnField: '*'})
+				.insert('new_user', usersDb, userData, {allowedColumns: '*', returnField: '*'})
 				.selectFrom('new_user', '*')
 				.build();
 
@@ -283,9 +283,9 @@ describe('ChainedInsertBuilder - Reusability Tests', () => {
 			(dbpg.query as jest.Mock).mockResolvedValue(createMockQueryResult([expectedUser]));
 
 			const chainedInsert = createChainedInsert()
-				.insert('user', usersDb, userData, {returnField: '*'})
-				.insertWithReference('post', postsDb, postData, {from: 'user', field: 'id', to: 'userId'})
-				.insertWithReference('address', addressesDb, addressData, {from: 'user', field: 'id', to: 'userId'})
+				.insert('user', usersDb, userData, {allowedColumns: '*', returnField: '*'})
+				.insertWithReference('post', postsDb, postData, {from: 'user', field: 'id', to: 'userId'}, {allowedColumns: '*'})
+				.insertWithReference('address', addressesDb, addressData, {from: 'user', field: 'id', to: 'userId'}, {allowedColumns: '*'})
 				.selectFrom('user')
 				.build();
 
@@ -319,7 +319,7 @@ describe('ChainedInsertBuilder - Reusability Tests', () => {
 			(dbpg.query as jest.Mock).mockResolvedValue(createMockQueryResult([expectedUser]));
 
 			const chainedInsert = createChainedInsert()
-				.insert('safe_user', usersDb, userData, {returnField: '*'})
+				.insert('safe_user', usersDb, userData, {allowedColumns: '*', returnField: '*'})
 				.selectFrom('safe_user')
 				.build();
 
@@ -352,19 +352,19 @@ describe('ChainedInsertBuilder - Reusability Tests', () => {
 
 			const chainedInsert = createChainedInsert()
 				// Create the user account
-				.insert('new_customer', usersDb, userData, {returnField: '*'})
+				.insert('new_customer', usersDb, userData, {allowedColumns: '*', returnField: '*'})
 				// Create welcome post
 				.insertWithReference('welcome_post', postsDb, welcomePost, {
 					from: 'new_customer',
 					field: 'id',
 					to: 'userId',
-				})
+				}, {allowedColumns: '*'})
 				// Conditionally create shipping address
 				.insertWithReferenceIf(hasShippingAddress, 'billing_address', addressesDb, billingAddress, {
 					from: 'new_customer',
 					field: 'id',
 					to: 'userId',
-				})
+				}, {allowedColumns: '*'})
 				.selectFrom('new_customer')
 				.build();
 
@@ -393,17 +393,17 @@ describe('ChainedInsertBuilder - Reusability Tests', () => {
 			(dbpg.query as jest.Mock).mockResolvedValue(createMockQueryResult([expectedUser]));
 
 			const chainedInsert = createChainedInsert()
-				.insert('user', usersDb, userData, {returnField: '*'})
+				.insert('user', usersDb, userData, {allowedColumns: '*', returnField: '*'})
 				.insertWithReferenceIf(createPost, 'post1', postsDb, postData, {
 					from: 'user',
 					field: 'id',
 					to: 'userId',
-				})
+				}, {allowedColumns: '*'})
 				.insertWithReferenceIf(createAddress, 'address', addressesDb, addressData, {
 					from: 'user',
 					field: 'id',
 					to: 'userId',
-				})
+				}, {allowedColumns: '*'})
 				.insertWithReferenceIf(
 					createSecondPost,
 					'post2',
@@ -413,7 +413,8 @@ describe('ChainedInsertBuilder - Reusability Tests', () => {
 						from: 'user',
 						field: 'id',
 						to: 'userId',
-					}
+					},
+					{allowedColumns: '*'}
 				)
 				.selectFrom('user')
 				.build();
@@ -442,7 +443,7 @@ describe('ChainedInsertBuilder - Reusability Tests', () => {
 			(dbpg.query as jest.Mock).mockRejectedValue(dbError);
 
 			const chainedInsert = createChainedInsert()
-				.insert('error_user', usersDb, userData, {returnField: '*'})
+				.insert('error_user', usersDb, userData, {allowedColumns: '*', returnField: '*'})
 				.selectFrom('error_user')
 				.build();
 

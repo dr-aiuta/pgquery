@@ -1,8 +1,26 @@
-import {QueryObject} from './query-utils';
+import {QueryObject, AllowedColumns, OnConflict} from './query-utils';
 import {SchemaToData} from '../types/core-types';
 import {DatabaseOperations} from '../core/database-operations';
 import {QueryArrayResult} from 'pg';
 import {executeTransactionQuery} from './query-executor';
+
+/**
+ * Options of an insert step. allowedColumns is required: every write names its columns.
+ * Keys of the step's data outside allowedColumns are dropped.
+ */
+export interface InsertStepOptions<T> {
+	allowedColumns: AllowedColumns<T>;
+	returnField?: keyof T | (keyof T)[] | '*';
+	onConflict?: OnConflict<T>;
+	idUser?: string;
+}
+
+/** Options of an update step. allowedColumns is required: every write names its columns. */
+export interface UpdateStepOptions<T> {
+	allowedColumns: AllowedColumns<T>;
+	returnField?: keyof T | (keyof T)[] | '*';
+	idUser?: string;
+}
 
 /**
  * Simplified builder for chained inserts with CTE support
@@ -13,14 +31,16 @@ import {executeTransactionQuery} from './query-executor';
  * @example
  * ```typescript
  * const result = new ChainedInsertBuilder()
- *   .insert('inserted_place', placesDb, placeData, {returnField: '*'})
+ *   .insert('inserted_place', placesDb, placeData, {allowedColumns: ['name', 'street'], returnField: '*'})
  *   .insertWithReference('inserted_place_contact', placesContactsDb,
  *     {idContact},
- *     {from: 'inserted_place', field: 'idPlace', to: 'idPlace'}
+ *     {from: 'inserted_place', field: 'idPlace', to: 'idPlace'},
+ *     {allowedColumns: ['idContact']}
  *   )
  *   .insertWithReferenceIf(isBillingPlace, 'inserted_billing', billingDb,
- *     {},
- *     {from: 'inserted_place_contact', field: 'idPlaceContact', to: 'idPlaceContact'}
+ *     {note},
+ *     {from: 'inserted_place_contact', field: 'idPlaceContact', to: 'idPlaceContact'},
+ *     {allowedColumns: ['note']}
  *   )
  *   .selectFrom('inserted_place')
  *   .build();
@@ -38,14 +58,10 @@ export class ChainedInsertBuilder {
 		cteName: string,
 		table: DatabaseOperations<T>,
 		data: Partial<SchemaToData<T>>,
-		options?: {
-			returnField?: keyof T | (keyof T)[] | '*';
-			onConflict?: boolean;
-			idUser?: string;
-		}
+		options: InsertStepOptions<T>
 	): ChainedInsertBuilder {
 		const insertQuery = table.insert({
-			allowedColumns: '*',
+			allowedColumns: options?.allowedColumns,
 			options: {
 				data,
 				returnField: options?.returnField || '*',
@@ -71,18 +87,14 @@ export class ChainedInsertBuilder {
 		table: DatabaseOperations<T>,
 		data: Partial<SchemaToData<T>>,
 		reference: {from: string; field: string; to: keyof T},
-		options?: {
-			returnField?: keyof T | (keyof T)[] | '*';
-			onConflict?: boolean;
-			idUser?: string;
-		}
+		options: InsertStepOptions<T>
 	): ChainedInsertBuilder {
 		// Create the insert query without the referenced field
 		const dataWithoutRef = {...data};
 		delete dataWithoutRef[reference.to];
 
 		const insertQuery = table.insert({
-			allowedColumns: '*',
+			allowedColumns: options?.allowedColumns,
 			options: {
 				data: dataWithoutRef,
 				returnField: options?.returnField || '*',
@@ -115,11 +127,7 @@ export class ChainedInsertBuilder {
 		table: DatabaseOperations<T>,
 		data: Partial<SchemaToData<T>>,
 		reference: {from: string; field: string; to: keyof T},
-		options?: {
-			returnField?: keyof T | (keyof T)[] | '*';
-			onConflict?: boolean;
-			idUser?: string;
-		}
+		options: InsertStepOptions<T>
 	): ChainedInsertBuilder {
 		if (condition) {
 			return this.insertWithReference(cteName, table, data, reference, options);
@@ -135,13 +143,10 @@ export class ChainedInsertBuilder {
 		table: DatabaseOperations<T>,
 		data: Partial<SchemaToData<T>>,
 		where: Partial<SchemaToData<T>>,
-		options?: {
-			returnField?: keyof T | (keyof T)[] | '*';
-			idUser?: string;
-		}
+		options: UpdateStepOptions<T>
 	): ChainedInsertBuilder {
 		const updateQuery = table.update({
-			allowedColumns: '*',
+			allowedColumns: options?.allowedColumns,
 			options: {
 				data,
 				where,
@@ -168,10 +173,7 @@ export class ChainedInsertBuilder {
 		data: Partial<SchemaToData<T>>,
 		where: Partial<SchemaToData<T>>,
 		reference: {from: string; field: string; to: keyof T},
-		options?: {
-			returnField?: keyof T | (keyof T)[] | '*';
-			idUser?: string;
-		}
+		options: UpdateStepOptions<T>
 	): ChainedInsertBuilder {
 		// Create the update query with the referenced field
 		const dataWithRef = {
@@ -180,7 +182,7 @@ export class ChainedInsertBuilder {
 		};
 
 		const updateQuery = table.update({
-			allowedColumns: '*',
+			allowedColumns: options?.allowedColumns,
 			options: {
 				data: dataWithRef,
 				where,
@@ -213,10 +215,7 @@ export class ChainedInsertBuilder {
 		table: DatabaseOperations<T>,
 		data: Partial<SchemaToData<T>>,
 		where: Partial<SchemaToData<T>>,
-		options?: {
-			returnField?: keyof T | (keyof T)[] | '*';
-			idUser?: string;
-		}
+		options: UpdateStepOptions<T>
 	): ChainedInsertBuilder {
 		if (condition) {
 			return this.update(cteName, table, data, where, options);
@@ -234,10 +233,7 @@ export class ChainedInsertBuilder {
 		data: Partial<SchemaToData<T>>,
 		where: Partial<SchemaToData<T>>,
 		reference: {from: string; field: string; to: keyof T},
-		options?: {
-			returnField?: keyof T | (keyof T)[] | '*';
-			idUser?: string;
-		}
+		options: UpdateStepOptions<T>
 	): ChainedInsertBuilder {
 		if (condition) {
 			return this.updateWithReference(cteName, table, data, where, reference, options);

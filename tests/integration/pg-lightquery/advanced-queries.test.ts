@@ -70,7 +70,6 @@ describe('Table Operations - Advanced Query Operations', () => {
 
 		const selectResult = usersTable.selectUsers(['id', 'name', 'email'], {
 			where: {'name.like': nameSubstring},
-			alias: 'u',
 		});
 
 		expect(selectResult.query.sqlText).toContain('SELECT');
@@ -120,8 +119,9 @@ describe('Table Operations - Advanced Query Operations', () => {
 			where: {'id.in': ids},
 		});
 
-		expect(selectResult.query.sqlText).toContain('IN');
-		expect(selectResult.query.values).toEqual(expect.arrayContaining(ids));
+		// The list is sent as one array parameter.
+		expect(selectResult.query.sqlText).toContain('WHERE "id" = ANY($1)');
+		expect(selectResult.query.values).toEqual([ids]);
 
 		const result = await selectResult.execute();
 		expect(result).toEqual(expectedResult);

@@ -49,7 +49,7 @@ describe('ChainedInsertBuilder - Update Operations', () => {
 			(dbpg.query as jest.Mock).mockResolvedValue(createMockQueryResult([expectedUser]));
 
 			const chainedUpdate = createChainedInsert()
-				.update('updated_user', usersDb, updateData, whereClause, {returnField: '*'})
+				.update('updated_user', usersDb, updateData, whereClause, {allowedColumns: '*', returnField: '*'})
 				.selectFrom('updated_user')
 				.build();
 
@@ -74,8 +74,8 @@ describe('ChainedInsertBuilder - Update Operations', () => {
 			(dbpg.query as jest.Mock).mockResolvedValue(createMockQueryResult(expectedResults));
 
 			const chainedUpdate = createChainedInsert()
-				.update('user_update', usersDb, userUpdate, {id: 1}, {returnField: '*'})
-				.update('post_update', postsDb, postUpdate, {id: 10}, {returnField: '*'})
+				.update('user_update', usersDb, userUpdate, {id: 1}, {allowedColumns: '*', returnField: '*'})
+				.update('post_update', postsDb, postUpdate, {id: 10}, {allowedColumns: '*', returnField: '*'})
 				.selectFrom('user_update')
 				.build();
 
@@ -103,14 +103,14 @@ describe('ChainedInsertBuilder - Update Operations', () => {
 			(dbpg.query as jest.Mock).mockResolvedValue(createMockQueryResult(expectedResults));
 
 			const chainedOps = createChainedInsert()
-				.insert('new_user', usersDb, userData, {returnField: '*'})
+				.insert('new_user', usersDb, userData, {allowedColumns: '*', returnField: '*'})
 				.updateWithReference(
 					'updated_post',
 					postsDb,
 					postUpdate,
 					{id: 5}, // WHERE post id = 5
 					{from: 'new_user', field: 'id', to: 'userId'},
-					{returnField: '*'}
+					{allowedColumns: '*', returnField: '*'}
 				)
 				.selectFrom('new_user')
 				.build();
@@ -138,8 +138,8 @@ describe('ChainedInsertBuilder - Update Operations', () => {
 			const shouldUpdatePost = false;
 
 			const chainedOps = createChainedInsert()
-				.insert('new_user', usersDb, userData, {returnField: '*'})
-				.updateIf(shouldUpdatePost, 'post_update', postsDb, postUpdate, {id: 1}, {returnField: '*'})
+				.insert('new_user', usersDb, userData, {allowedColumns: '*', returnField: '*'})
+				.updateIf(shouldUpdatePost, 'post_update', postsDb, postUpdate, {id: 1}, {allowedColumns: '*', returnField: '*'})
 				.selectFrom('new_user')
 				.build();
 

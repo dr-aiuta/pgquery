@@ -6,6 +6,7 @@ import {
 	QueryResult,
 	TransactionResult,
 	BaseOptions,
+	UpdateBaseOptions,
 	InsertOptions,
 	SelectOptions,
 	UpdateOptions,
@@ -29,12 +30,12 @@ import {DatabaseOperations} from './database-operations';
  *   }
  *
  *   // Only methods you define here will be in the public API
- *   public async insertUser(userData: UserData): Promise<User> {
- *     return this.db.insert(userData, {allowedColumns: ['name', 'email']}).execute();
+ *   public async insertUser(userData: UserData): Promise<User[]> {
+ *     return this.insert({allowedColumns: ['name', 'email'], options: {data: userData}}).execute();
  *   }
  *
  *   public async selectUsers(filter?: UserFilter): Promise<User[]> {
- *     return this.db.select({params: filter}).execute();
+ *     return this.select({allowedColumns: ['id', 'name'], options: {where: filter}}).execute();
  *   }
  * }
  *
@@ -99,7 +100,7 @@ export abstract class TableBase<T extends Record<string, {type: keyof ColumnType
 	 * Protected method - only available to table implementers, not end users
 	 */
 	protected select<U extends QueryResultRow = SchemaToData<T>>(
-		input: BaseOptions<T> & {options?: SelectOptions<T>} = {}
+		input: BaseOptions<T> & {options?: SelectOptions<T>}
 	): QueryResult<Partial<U>[]> {
 		return this.db.select(input);
 	}
@@ -119,7 +120,7 @@ export abstract class TableBase<T extends Record<string, {type: keyof ColumnType
 	 * Access to low-level update operation with new standardized interface
 	 * Protected method - only available to table implementers, not end users
 	 */
-	protected update(input: BaseOptions<T> & {options: UpdateOptions<T>}): QueryResult<Partial<SchemaToData<T>>[]> {
+	protected update(input: UpdateBaseOptions<T> & {options: UpdateOptions<T>}): QueryResult<Partial<SchemaToData<T>>[]> {
 		return this.db.update(input);
 	}
 
