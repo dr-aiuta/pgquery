@@ -1,3 +1,36 @@
+# v0.5.1
+
+Tidy release. Valid calls behave the same. See the upgrade guide: [docs/upgrading/to-0.5.1.md](docs/upgrading/to-0.5.1.md).
+
+Fixes:
+
+- A chained insert writes its steps in the order they are called. Inserts used to come first and updates after them, whatever the call order.
+- A referenced insert keeps its `ON CONFLICT` clause. It used to be dropped.
+- A referenced insert or update may have empty data. It used to throw.
+- A placeholder inside a string literal, a quoted name or a comment of predefined SQL is no longer counted.
+
+Added:
+
+- A chain step takes a table class instance, as well as its operations object.
+- `TableBase` has `registerRelatedTable`, `getRelatedTable` and `createChainedInsert`. `EnhancedTableBase` is a deprecated alias of `TableBase`.
+- `sqlExpression(...)` is accepted as a value in insert and update data. It is written into the SQL text and is not bound.
+- `selectFrom` takes an array of column names.
+
+New checks. They reject input that was raw SQL, or that could never have run:
+
+- The name of a chain step, the `from` and `field` of a reference, and each `selectFrom` column must be plain identifiers. `selectFrom` no longer accepts an expression, and it writes each column in double quotes.
+- A reference target `to` must be a column of the table definition.
+- A table name in a table definition must be a plain name, optionally with a schema in front.
+- When `predefinedSQL` has `values`, their count must match its highest placeholder.
+
+Internal:
+
+- The chained builder no longer parses its own SQL back with regular expressions.
+- The sources moved into a new layout. `src/index.ts` exports the same names.
+- `select` and `selectWithCustomSchema` share one implementation.
+- The `includeMetadata` option was never used. It is deprecated and ignored.
+- `noUnusedLocals` is on, the path aliases are gone, and Prettier checks the formatting in CI.
+
 # v0.5.0
 
 Breaking release. A caret range on 0.4.x does not install it. See the upgrade guide: [docs/upgrading/to-0.5.0.md](docs/upgrading/to-0.5.0.md).

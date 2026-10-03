@@ -63,6 +63,28 @@ usersTable.updateUser(['name', 'email'], {data: {name: 'Ann', email: undefined},
 
 In an insert, `null` is written as `NULL` too. The column default then does not apply. Leave the key out, or pass `undefined`, to get the default.
 
+## SQL expressions as values
+
+Since 0.5.1 a value in `data` can be an SQL expression. Wrap it in `sqlExpression(...)`. The expression is written into the SQL text and is not bound.
+
+```typescript
+import {sqlExpression} from 'pg-lightquery';
+
+const insert = usersDb.insert({
+	allowedColumns: ['name', 'createdAt'],
+	options: {data: {name: 'Ann', createdAt: sqlExpression('now()')}, returnField: 'id'},
+});
+// INSERT INTO users ("name", "lastChangedBy", "createdAt")
+// VALUES ($1, $2, now())
+// RETURNING "id";
+// values: ['Ann', 'SERVER']
+```
+
+- An expression is SQL you write. Never build one from request input.
+- Request data cannot forge an expression. The marker is a symbol, and JSON cannot carry a symbol. An object such as `{"sql": "now()"}` from a request body is bound as a value.
+- `allowedColumns` applies to an expression as to any other value.
+- Expression columns are written after the bound columns.
+
 ## Upserts
 
 `onConflict` turns an insert into an upsert.

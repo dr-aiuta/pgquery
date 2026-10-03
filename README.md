@@ -17,7 +17,7 @@ A modern, type-safe PostgreSQL query builder for Node.js with TypeScript support
 - **Deferred Execution**: Build queries separately, execute when ready
 - **Composition Over Inheritance**: Clean, testable code structure
 - **Security First**: Separate concerns for column validation and data projection
-- **Enhanced TableBase**: Built-in support for complex table relationships
+- **Related Tables**: `TableBase` registers related tables for chained operations
 
 **⚡ Advanced Features**
 
@@ -50,7 +50,8 @@ Upgrade guides:
 | ---------- | -------- | ---------------------------------------------------- |
 | 0.4.x      | 0.4.7    | [docs/upgrading/to-0.4.7.md](docs/upgrading/to-0.4.7.md) |
 | 0.4.x      | 0.5.0    | [docs/upgrading/to-0.5.0.md](docs/upgrading/to-0.5.0.md) |
-| 0.0.x      | 0.5.0    | [docs/upgrading/from-0.0.x.md](docs/upgrading/from-0.0.x.md) |
+| 0.5.0      | 0.5.1    | [docs/upgrading/to-0.5.1.md](docs/upgrading/to-0.5.1.md) |
+| 0.0.x      | 0.5.x    | [docs/upgrading/from-0.0.x.md](docs/upgrading/from-0.0.x.md) |
 
 ## Quick Start
 
@@ -94,7 +95,7 @@ const usersTable: TableDefinition<UsersSchema> = {
 ### 3. Create Your Table Class
 
 ```typescript
-import {TableBase, EnhancedTableBase} from 'pg-lightquery';
+import {TableBase} from 'pg-lightquery';
 
 // Basic table class
 class UsersTable extends TableBase<UsersSchema> {
@@ -137,8 +138,8 @@ class UsersTable extends TableBase<UsersSchema> {
 	}
 }
 
-// Enhanced table class with related tables support
-class EnhancedUsersTable extends EnhancedTableBase<UsersSchema> {
+// A table class that registers related tables for chained operations
+class UsersWithProfileTable extends TableBase<UsersSchema> {
 	constructor() {
 		super(usersTable);
 
@@ -150,25 +151,25 @@ class EnhancedUsersTable extends EnhancedTableBase<UsersSchema> {
 	// Complex multi-table insert with CTE support
 	createUserWithProfile(userData: {name: string; email: string}, includePost = false, includeAddress = false) {
 		const postData = {title: 'Welcome Post', content: 'Welcome to our platform!'};
-		const addressData = {street: '123 Default St', city: 'Default City'};
+		const addressData = {street: '123 Default St', neighborhood: 'Center', city: 'Default City'};
 
 		return this.createChainedInsert()
-			.insert('new_user', this.db, userData, {allowedColumns: ['name', 'email'], returnField: '*'})
-			.insertWithReferenceIf(
+			.insert('new_user', this, userData, {allowedColumns: ['name', 'email'], returnField: '*'})
+			.insertIntoTableWithReferenceIf(
 				includePost,
 				'user_post',
-				this.getRelatedTable('posts'),
+				'posts',
 				postData,
 				{from: 'new_user', field: 'id', to: 'userId'},
 				{allowedColumns: ['title', 'content']}
 			)
-			.insertWithReferenceIf(
+			.insertIntoTableWithReferenceIf(
 				includeAddress,
 				'user_address',
-				this.getRelatedTable('addresses'),
+				'addresses',
 				addressData,
 				{from: 'new_user', field: 'id', to: 'userId'},
-				{allowedColumns: ['street', 'city']}
+				{allowedColumns: ['street', 'neighborhood', 'city']}
 			)
 			.selectFrom('new_user')
 			.build();
@@ -176,7 +177,7 @@ class EnhancedUsersTable extends EnhancedTableBase<UsersSchema> {
 }
 
 const users = new UsersTable();
-const enhancedUsers = new EnhancedUsersTable();
+const usersWithProfile = new UsersWithProfileTable();
 ```
 
 ### 4. Use It
@@ -198,7 +199,7 @@ const updateQuery = users.updateUser({name: 'John Updated'}, {id: 1});
 const updatedUser = await updateQuery.execute();
 
 // Complex multi-table operations
-const userWithProfile = await enhancedUsers
+const userWithProfile = await usersWithProfile
 	.createUserWithProfile(
 		{name: 'John', email: 'john@example.com'},
 		true, // include post
@@ -226,174 +227,29 @@ const results = await query.execute();
 
 ### 🔗 Chained Insert & Update Builder
 
-Build complex multi-table operations with automatic CTE handling, now with full support for updates:
+A chain runs several inserts and updates as one statement. A later step can use a value an earlier step returned. Steps run in the order they are called, and each step names its columns.
 
 ```typescript
 import {createChainedInsert} from 'pg-lightquery';
 
-// Simple chained insert
-const result = createChainedInsert()
-	.insert('new_user', usersDb, userData, {allowedColumns: '*', returnField: '*'})
-	.insertWithReference('user_post', postsDb, postData, {
-		from: 'new_user',
-		field: 'id',
-		to: 'userId',
-	}, {allowedColumns: '*'})
-	.selectFrom('new_user')
-	.build();
-
-// Conditional inserts
-const result = createChainedInsert()
-	.insert('new_user', usersDb, userData, {allowedColumns: '*', returnField: '*'})
-	.insertWithReferenceIf(hasAddress, 'user_address', addressesDb, addressData, {
-		from: 'new_user',
-		field: 'id',
-		to: 'userId',
-	}, {allowedColumns: '*'})
-	.selectFrom('new_user')
-	.build();
-
-// UPDATE operations in transactions
-const updateResult = createChainedInsert()
-	.update('updated_user', usersDb, {name: 'Updated Name'}, {id: userId}, {allowedColumns: '*', returnField: '*'})
-	.update('updated_post', postsDb, {title: 'Updated Title'}, {id: postId}, {allowedColumns: '*', returnField: '*'})
-	.selectFrom('updated_user')
-	.build();
-
-// Mixed INSERT and UPDATE operations
-const mixedResult = createChainedInsert()
-	.insert('new_user', usersDb, newUserData, {allowedColumns: '*', returnField: '*'})
-	.updateWithReference(
-		'updated_post',
-		postsDb,
-		{content: 'Post updated by new user'},
-		{id: existingPostId},
+const chain = createChainedInsert()
+	.insert('new_user', usersTable, {name: 'Ann', email: 'ann@example.com'}, {allowedColumns: ['name', 'email'], returnField: '*'})
+	.insertWithReference(
+		'new_post',
+		postsTable,
+		{title: 'Hello', content: 'First post'},
 		{from: 'new_user', field: 'id', to: 'userId'},
-		{allowedColumns: '*', returnField: '*'}
+		{allowedColumns: ['title', 'content'], returnField: 'id'}
 	)
 	.selectFrom('new_user')
 	.build();
 
-// Execute the chained operation
-const result = await mixedResult.execute();
+console.log(chain.queries[0].sqlText); // one WITH statement
+const results = await chain.execute();
+const user = results[0].rows[0];
 ```
 
-#### 🔄 Advanced Update Scenarios
-
-```typescript
-// Update multiple related tables in a transaction
-const result = createChainedInsert()
-	.update('charge_update', chargesDb, {status: 'COMPLETED', amount: 1500}, {idCharge: chargeId}, {allowedColumns: '*', returnField: '*'})
-	.updateTable('deal_update', 'dealsTable', {status: 'COMPLETED'}, {idDeal: dealId}, {allowedColumns: '*', returnField: '*'})
-	.updateTable(
-		'expense_update',
-		'otherExpensesTable',
-		{status: 'COMPLETED'},
-		{idExpense: expenseId},
-		{allowedColumns: '*', returnField: '*'}
-	)
-	.selectFrom('charge_update')
-	.build();
-
-// Conditional updates based on business logic
-const shouldUpdateDeal = dealStatus === 'PENDING';
-const shouldUpdateExpense = expenseAmount > 0;
-
-const conditionalResult = createChainedInsert()
-	.insert('new_charge', chargesDb, chargeData, {allowedColumns: '*', returnField: '*'})
-	.updateIf(shouldUpdateDeal, 'deal_update', dealsDb, {status: 'ACTIVE'}, {idDeal: dealId}, {allowedColumns: '*'})
-	.updateIf(shouldUpdateExpense, 'expense_update', expensesDb, {amount: newAmount}, {idExpense: expenseId}, {allowedColumns: '*'})
-	.selectFrom('new_charge')
-	.build();
-
-// Update with references from previous operations
-const referenceResult = createChainedInsert()
-	.insert('new_entity', entitiesDb, entityData, {allowedColumns: '*', returnField: '*'})
-	.updateWithReference(
-		'linked_record',
-		recordsDb,
-		{lastModifiedBy: 'system'},
-		{id: recordId},
-		{from: 'new_entity', field: 'id', to: 'entityId'},
-		{allowedColumns: '*', returnField: '*'}
-	)
-	.selectFrom('new_entity')
-	.build();
-
-// Generated SQL for mixed operations:
-// WITH new_entity AS (
-//   INSERT INTO entities (...) VALUES (...) RETURNING *
-// ),
-// linked_record AS (
-//   UPDATE records
-//   SET "lastModifiedBy" = $1, "entityId" = (SELECT "id" FROM new_entity)
-//   WHERE "id" = $2
-//   RETURNING *
-// )
-// SELECT * FROM new_entity;
-```
-
-### 🏗️ Enhanced TableBase
-
-Simplify complex table relationships with built-in registry:
-
-```typescript
-class PlacesTable extends EnhancedTableBase<PlacesSchema> {
-	constructor() {
-		super(placesTable);
-
-		// Register related tables
-		this.registerRelatedTable('places_contacts', {tableDefinition: placesContactsTable});
-		this.registerRelatedTable('places_contacts_billing', {tableDefinition: placesContactsBillingTable});
-	}
-
-	insertPlaceWithRelations(data: PlacesData, idContact: number, isBilling = false) {
-		return this.createChainedInsert()
-			.insert('place', this.db, data, {allowedColumns: '*'})
-			.insertWithReference(
-				'place_contact',
-				'places_contacts',
-				{idContact},
-				{
-					from: 'place',
-					field: 'idPlace',
-					to: 'idPlace',
-				},
-				{allowedColumns: '*'}
-			)
-			.insertWithReferenceIf(
-				isBilling,
-				'billing',
-				'places_contacts_billing',
-				{},
-				{
-					from: 'place_contact',
-					field: 'idPlaceContact',
-					to: 'idPlaceContact',
-				},
-				{allowedColumns: '*'}
-			)
-			.selectFrom('place')
-			.build();
-	}
-
-	// Update operations with registered tables
-	updatePlaceAndContacts(placeId: number, placeData: Partial<PlacesData>, contactData?: any) {
-		return this.createChainedInsert()
-			.update('updated_place', this.db, placeData, {idPlace: placeId}, {allowedColumns: '*', returnField: '*'})
-			.updateTableIf(
-				!!contactData,
-				'updated_contact',
-				'places_contacts',
-				contactData || {},
-				{idPlace: placeId},
-				{allowedColumns: '*', returnField: '*'}
-			)
-			.selectFrom('updated_place')
-			.build();
-	}
-}
-```
+A step takes a table class instance. A table class can also register related tables and name them in its chains, with `registerRelatedTable` and `createChainedInsert` of `TableBase`. Updates, conditional steps, upserts and registered tables are described in [Transactions and chains](docs/features/transactions-and-chains.md#chained-inserts-and-updates).
 
 ### 🎨 Smart Query Operators
 
@@ -562,12 +418,14 @@ describe('User Operations', () => {
 
 	it('handles chained inserts correctly', async () => {
 		const chainedInsert = createChainedInsert()
-			.insert('new_user', usersDb, userData, {allowedColumns: '*', returnField: '*'})
-			.insertWithReference('user_post', postsDb, postData, {
-				from: 'new_user',
-				field: 'id',
-				to: 'userId',
-			}, {allowedColumns: '*'})
+			.insert('new_user', usersTable, userData, {allowedColumns: ['name', 'email'], returnField: '*'})
+			.insertWithReference(
+				'user_post',
+				postsTable,
+				postData,
+				{from: 'new_user', field: 'id', to: 'userId'},
+				{allowedColumns: ['title', 'content']}
+			)
 			.selectFrom('new_user')
 			.build();
 
@@ -634,7 +492,7 @@ builder.updateWithReference(cteName, table, data, where, reference, options);
 builder.updateIf(condition, cteName, table, data, where, options);
 builder.updateWithReferenceIf(condition, cteName, table, data, where, reference, options);
 
-// Set final SELECT
+// Set final SELECT. columns is '*', one column name, or an array of column names.
 builder.selectFrom(cteName, columns);
 
 // Build and execute
@@ -642,10 +500,10 @@ const result = builder.build();
 const data = await result.execute();
 ```
 
-### Enhanced TableBase
+### Related Tables
 
 ```typescript
-class MyTable extends EnhancedTableBase<MySchema> {
+class MyTable extends TableBase<MySchema> {
 	constructor() {
 		super(tableDefinition);
 
@@ -656,8 +514,8 @@ class MyTable extends EnhancedTableBase<MySchema> {
 	// Use chained inserts with registered tables
 	complexInsertOperation() {
 		return this.createChainedInsert()
-			.insertIntoTable('main', 'main_table', data, {allowedColumns: '*'})
-			.insertIntoTableWithReference('related', 'related_table', relatedData, reference, {allowedColumns: '*'})
+			.insert('main', this, data, {allowedColumns: ['name']})
+			.insertIntoTableWithReference('related', 'related_table', relatedData, reference, {allowedColumns: ['note']})
 			.selectFrom('main')
 			.build();
 	}
@@ -665,14 +523,16 @@ class MyTable extends EnhancedTableBase<MySchema> {
 	// Use chained updates with registered tables
 	complexUpdateOperation() {
 		return this.createChainedInsert()
-			.updateTable('main_update', 'main_table', data, where, {allowedColumns: '*'})
-			.updateTableWithReference('related_update', 'related_table', relatedData, where, reference, {allowedColumns: '*'})
-			.updateTableIf(condition, 'conditional_update', 'other_table', data, where, {allowedColumns: '*'})
+			.update('main_update', this, data, where, {allowedColumns: ['name']})
+			.updateTableWithReference('related_update', 'related_table', relatedData, where, reference, {allowedColumns: ['note']})
+			.updateTableIf(condition, 'conditional_update', 'related_table', data, where, {allowedColumns: ['note']})
 			.selectFrom('main_update')
 			.build();
 	}
 }
 ```
+
+`EnhancedTableBase` is the old name of `TableBase`. It keeps working and is deprecated.
 
 ### Query Operators
 
