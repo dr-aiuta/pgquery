@@ -203,11 +203,17 @@ class ECommerceOrderService extends EnhancedTableBase<OrdersSchema> {
 
 		// Add order items
 		items.forEach((item, index) => {
-			builder = builder.insertWithReference(`order_item_${index}`, this.getRelatedTable('order_items'), item, {
-				from: 'new_order',
-				field: 'id',
-				to: 'orderId',
-			}, {allowedColumns: '*'});
+			builder = builder.insertWithReference(
+				`order_item_${index}`,
+				this.getRelatedTable('order_items'),
+				item,
+				{
+					from: 'new_order',
+					field: 'id',
+					to: 'orderId',
+				},
+				{allowedColumns: '*'}
+			);
 		});
 
 		// Conditionally add shipping
@@ -311,7 +317,12 @@ class LMSCourseService extends EnhancedTableBase<CoursesSchema> {
 	public enrollStudentsInCourse(courseId: number, studentIds: number[]) {
 		const coursesDb = new DatabaseOperations(coursesTableDef);
 
-		let builder = createChainedInsert().insert('course_ref', coursesDb, {id: courseId}, {allowedColumns: '*', returnField: '*'});
+		let builder = createChainedInsert().insert(
+			'course_ref',
+			coursesDb,
+			{id: courseId},
+			{allowedColumns: '*', returnField: '*'}
+		);
 
 		studentIds.forEach((studentId, index) => {
 			builder = builder.insertWithReference(

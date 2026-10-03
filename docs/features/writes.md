@@ -89,10 +89,10 @@ const insert = usersDb.insert({
 
 `onConflict` turns an insert into an upsert.
 
-| `onConflict` | Conflict target | Since |
-|---|---|---|
-| `false`, or left out | none. A plain insert. | |
-| `true` | the primary key columns of the table definition | |
+| `onConflict`          | Conflict target                                                        | Since |
+| --------------------- | ---------------------------------------------------------------------- | ----- |
+| `false`, or left out  | none. A plain insert.                                                  |       |
+| `true`                | the primary key columns of the table definition                        |       |
 | `{target: ['email']}` | the named columns. They must have a unique constraint in the database. | 0.5.0 |
 
 ```typescript
@@ -119,12 +119,12 @@ An insert whose `data` yields no column becomes `INSERT INTO ... DEFAULT VALUES`
 
 ## `returnField`
 
-| Value | SQL |
-|---|---|
-| left out | no `RETURNING` clause. `execute()` resolves to an empty array. |
-| `'*'` | `RETURNING *` |
-| `'id'` | `RETURNING "id"` |
-| `['id', 'name']` | `RETURNING "id", "name"` |
+| Value            | SQL                                                            |
+| ---------------- | -------------------------------------------------------------- |
+| left out         | no `RETURNING` clause. `execute()` resolves to an empty array. |
+| `'*'`            | `RETURNING *`                                                  |
+| `'id'`           | `RETURNING "id"`                                               |
+| `['id', 'name']` | `RETURNING "id", "name"`                                       |
 
 Since 0.4.7 a name must be a column of the table definition. Anything else throws.
 
@@ -141,9 +141,7 @@ Since 0.5.0 `update` takes no `predefinedSQL`. PostgreSQL rejects two commands i
 A table whose definition has a column named `lastChangedBy` gets it written on every insert and every update. The value is the `idUser` option, and `'SERVER'` when `idUser` is left out.
 
 ```typescript
-await usersTable
-	.updateUser(['name', 'email'], {data: {email: null}, where: {id}, idUser: 'editor'})
-	.execute();
+await usersTable.updateUser(['name', 'email'], {data: {email: null}, where: {id}, idUser: 'editor'}).execute();
 // the row now has lastChangedBy = 'editor'
 ```
 
@@ -155,21 +153,21 @@ await usersTable
 
 `insert`:
 
-| Option | Meaning |
-|---|---|
-| `data` | the values to write, by column name |
-| `returnField` | the columns to return |
-| `onConflict` | see Upserts |
-| `idUser` | the value for `lastChangedBy` |
+| Option        | Meaning                             |
+| ------------- | ----------------------------------- |
+| `data`        | the values to write, by column name |
+| `returnField` | the columns to return               |
+| `onConflict`  | see Upserts                         |
+| `idUser`      | the value for `lastChangedBy`       |
 
 `update`:
 
-| Option | Meaning |
-|---|---|
-| `data` | the values to write, by column name |
-| `where` | which rows to update. Required. |
-| `returnField` | the columns to return |
-| `idUser` | the value for `lastChangedBy` |
+| Option           | Meaning                                |
+| ---------------- | -------------------------------------- |
+| `data`           | the values to write, by column name    |
+| `where`          | which rows to update. Required.        |
+| `returnField`    | the columns to return                  |
+| `idUser`         | the value for `lastChangedBy`          |
 | `allowUpdateAll` | allows an update with an empty `where` |
 
 ## Limits and failure modes

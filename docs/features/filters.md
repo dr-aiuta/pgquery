@@ -25,20 +25,20 @@ const rows = await query.execute();
 
 A key is a column name, or a column name with one operator after a dot.
 
-| Key | Value | SQL | Since |
-|---|---|---|---|
-| `<column>` | any value | `"<column>" = $n` | |
-| `<column>` | `null` | `"<column>" IS NULL` | |
-| `<column>` | an object | one `"<column>" ->> $n = $m` per key, for a JSON column | |
-| `<column>.not` | any value | `"<column>" <> $n` | |
-| `<column>.like` | a pattern | `"<column>" LIKE $n` | |
-| `<column>.in` | an array, or a comma-separated string | `"<column>" = ANY($n)` | one array parameter since 0.5.0 |
-| `<column>.null` | `true` or `false` | `IS NULL` for `true`, `IS NOT NULL` for `false` | booleans since 0.5.0 |
-| `<column>.startDate` | a date | `"<column>" >= $n` | |
-| `<column>.endDate` | a date | `"<column>" <= $n` | |
-| `<column>.orderBy` | `'ASC'` or `'DESC'`, in any case | `ORDER BY "<column>" ASC` | several sort keys since 0.4.7 |
-| `limit` | non-negative integer, as a number or a numeric string | `LIMIT n` | |
-| `offset` | non-negative integer, as a number or a numeric string | `OFFSET m` | 0.4.7 |
+| Key                  | Value                                                 | SQL                                                     | Since                           |
+| -------------------- | ----------------------------------------------------- | ------------------------------------------------------- | ------------------------------- |
+| `<column>`           | any value                                             | `"<column>" = $n`                                       |                                 |
+| `<column>`           | `null`                                                | `"<column>" IS NULL`                                    |                                 |
+| `<column>`           | an object                                             | one `"<column>" ->> $n = $m` per key, for a JSON column |                                 |
+| `<column>.not`       | any value                                             | `"<column>" <> $n`                                      |                                 |
+| `<column>.like`      | a pattern                                             | `"<column>" LIKE $n`                                    |                                 |
+| `<column>.in`        | an array, or a comma-separated string                 | `"<column>" = ANY($n)`                                  | one array parameter since 0.5.0 |
+| `<column>.null`      | `true` or `false`                                     | `IS NULL` for `true`, `IS NOT NULL` for `false`         | booleans since 0.5.0            |
+| `<column>.startDate` | a date                                                | `"<column>" >= $n`                                      |                                 |
+| `<column>.endDate`   | a date                                                | `"<column>" <= $n`                                      |                                 |
+| `<column>.orderBy`   | `'ASC'` or `'DESC'`, in any case                      | `ORDER BY "<column>" ASC`                               | several sort keys since 0.4.7   |
+| `limit`              | non-negative integer, as a number or a numeric string | `LIMIT n`                                               |                                 |
+| `offset`             | non-negative integer, as a number or a numeric string | `OFFSET m`                                              | 0.4.7                           |
 
 `.null` takes `true`, `false`, `'true'` or `'false'`. The strings are what a query string carries. Any other value throws.
 

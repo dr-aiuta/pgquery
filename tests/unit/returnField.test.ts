@@ -46,11 +46,16 @@ describe('returnField functionality', () => {
 
 		describe('returnField with array of fields', () => {
 			it('should generate correct RETURNING clause for multiple fields', () => {
-				const result = buildInsertSqlQuery(tableName, columnsForInsert, valuesForInsert, false, primaryKeyColumns, [], [
-					'id',
-					'name',
-					'email',
-				] as any, schemaColumns);
+				const result = buildInsertSqlQuery(
+					tableName,
+					columnsForInsert,
+					valuesForInsert,
+					false,
+					primaryKeyColumns,
+					[],
+					['id', 'name', 'email'] as any,
+					schemaColumns
+				);
 
 				expect(result.sqlText).toContain('RETURNING "id", "name", "email"');
 				expect(result.sqlText).not.toContain('RETURNING *');
@@ -58,9 +63,16 @@ describe('returnField functionality', () => {
 			});
 
 			it('should handle single field array correctly', () => {
-				const result = buildInsertSqlQuery(tableName, columnsForInsert, valuesForInsert, false, primaryKeyColumns, [], [
-					'id',
-				] as any, schemaColumns);
+				const result = buildInsertSqlQuery(
+					tableName,
+					columnsForInsert,
+					valuesForInsert,
+					false,
+					primaryKeyColumns,
+					[],
+					['id'] as any,
+					schemaColumns
+				);
 
 				expect(result.sqlText).toContain('RETURNING "id"');
 				expect(result.sqlText).not.toContain('RETURNING "id",');
@@ -190,20 +202,30 @@ describe('returnField functionality', () => {
 
 		describe('returnField with array of fields', () => {
 			it('should generate correct RETURNING clause for multiple fields', () => {
-				const result = buildUpdateSqlQuery(tableName, columnsForUpdate, valuesForUpdate, whereClause, whereValues, [
-					'id',
-					'name',
-					'email',
-				] as any, schemaColumns);
+				const result = buildUpdateSqlQuery(
+					tableName,
+					columnsForUpdate,
+					valuesForUpdate,
+					whereClause,
+					whereValues,
+					['id', 'name', 'email'] as any,
+					schemaColumns
+				);
 
 				expect(result.sqlText).toContain('RETURNING "id", "name", "email"');
 				expect(result.sqlText).not.toContain('RETURNING *');
 			});
 
 			it('should handle single field array correctly', () => {
-				const result = buildUpdateSqlQuery(tableName, columnsForUpdate, valuesForUpdate, whereClause, whereValues, [
-					'name',
-				] as any, schemaColumns);
+				const result = buildUpdateSqlQuery(
+					tableName,
+					columnsForUpdate,
+					valuesForUpdate,
+					whereClause,
+					whereValues,
+					['name'] as any,
+					schemaColumns
+				);
 
 				expect(result.sqlText).toContain('RETURNING "name"');
 				expect(result.sqlText).not.toContain('RETURNING "name",');
@@ -226,7 +248,15 @@ describe('returnField functionality', () => {
 
 		describe('returnField with asterisk (*)', () => {
 			it('should generate RETURNING * for asterisk', () => {
-				const result = buildUpdateSqlQuery(tableName, columnsForUpdate, valuesForUpdate, whereClause, whereValues, '*', schemaColumns);
+				const result = buildUpdateSqlQuery(
+					tableName,
+					columnsForUpdate,
+					valuesForUpdate,
+					whereClause,
+					whereValues,
+					'*',
+					schemaColumns
+				);
 
 				expect(result.sqlText).toContain('RETURNING *');
 				expect(result.sqlText).not.toContain('RETURNING "*"');
@@ -252,10 +282,16 @@ describe('returnField functionality', () => {
 
 	describe('SQL generation edge cases', () => {
 		it('should properly escape field names with special characters', () => {
-			const result = buildInsertSqlQuery(tableName, columnsForInsert, valuesForInsert, false, primaryKeyColumns, [], [
-				'user-id',
-				'first name',
-			] as any, schemaColumns);
+			const result = buildInsertSqlQuery(
+				tableName,
+				columnsForInsert,
+				valuesForInsert,
+				false,
+				primaryKeyColumns,
+				[],
+				['user-id', 'first name'] as any,
+				schemaColumns
+			);
 
 			expect(result.sqlText).toContain('RETURNING "user-id", "first name"');
 		});

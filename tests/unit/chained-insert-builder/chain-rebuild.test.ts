@@ -12,7 +12,10 @@ import {AddressesSchema, addressesColumns} from '../../tables/definitions/addres
 
 const usersDefinition: TableDefinition<UsersSchema> = {tableName: 'users', schema: {columns: usersColumns}};
 const postsDefinition: TableDefinition<PostsSchema> = {tableName: 'posts', schema: {columns: postsColumns}};
-const addressesDefinition: TableDefinition<AddressesSchema> = {tableName: 'addresses', schema: {columns: addressesColumns}};
+const addressesDefinition: TableDefinition<AddressesSchema> = {
+	tableName: 'addresses',
+	schema: {columns: addressesColumns},
+};
 
 // A table class that registers its related tables and builds chains. It extends TableBase, not EnhancedTableBase.
 class UsersWithRelations extends TableBase<UsersSchema> {
@@ -59,7 +62,9 @@ describe('ChainedInsertBuilder - rebuilt without regex (0.5.1)', () => {
 		it('rejects a step name that is not a plain identifier', () => {
 			for (const name of badNames) {
 				expect(() => createChainedInsert().insert(name, usersDb, {name: 'Ann'}, all)).toThrow(QueryInputError);
-				expect(() => createChainedInsert().update(name, usersDb, {name: 'Ann'}, {id: 1}, all)).toThrow(/Invalid step name/);
+				expect(() => createChainedInsert().update(name, usersDb, {name: 'Ann'}, {id: 1}, all)).toThrow(
+					/Invalid step name/
+				);
 				expect(() => createChainedInsert().selectFrom(name)).toThrow(/Invalid step name/);
 			}
 		});
@@ -225,7 +230,9 @@ describe('ChainedInsertBuilder - rebuilt without regex (0.5.1)', () => {
 				allowedColumns: ['name', 'updatedAt'],
 				options: {data: {updatedAt: sqlExpression('now()'), name: 'Bea'}, where: {id: 1}},
 			}).query;
-			expect(update.sqlText).toBe('UPDATE users\nSET "name" = $1, "lastChangedBy" = $2, "updatedAt" = now()\nWHERE "id" = $3;');
+			expect(update.sqlText).toBe(
+				'UPDATE users\nSET "name" = $1, "lastChangedBy" = $2, "updatedAt" = now()\nWHERE "id" = $3;'
+			);
 			expect(update.values).toEqual(['Bea', 'SERVER', 1]);
 		});
 
@@ -308,17 +315,23 @@ describe('ChainedInsertBuilder - rebuilt without regex (0.5.1)', () => {
 			const builder = new UsersWithRelations().chain();
 
 			expect(builder.insert('a', usersDb, {name: 'Ann'}, all)).toBe(builder);
-			expect(builder.insertWithReference('b', postsDb, {title: 'T', content: 'C'}, {...reference, from: 'a'}, all)).toBe(builder);
+			expect(
+				builder.insertWithReference('b', postsDb, {title: 'T', content: 'C'}, {...reference, from: 'a'}, all)
+			).toBe(builder);
 			expect(builder.insertWithReferenceIf(false, 'c', postsDb, {}, {...reference, from: 'a'}, all)).toBe(builder);
 			expect(builder.update('d', usersDb, {name: 'Bea'}, {id: 1}, all)).toBe(builder);
 			expect(builder.updateWithReference('e', postsDb, {}, {id: 1}, {...reference, from: 'a'}, all)).toBe(builder);
 			expect(builder.updateIf(false, 'f', usersDb, {name: 'Bea'}, {id: 1}, all)).toBe(builder);
-			expect(builder.updateWithReferenceIf(false, 'g', postsDb, {}, {id: 1}, {...reference, from: 'a'}, all)).toBe(builder);
-			expect(builder.insertIntoTable('h', 'posts', {title: 'T', content: 'C', userId: 1}, all)).toBe(builder);
-			expect(builder.insertIntoTableWithReference('i', 'posts', {title: 'T', content: 'C'}, {...reference, from: 'a'}, all)).toBe(
+			expect(builder.updateWithReferenceIf(false, 'g', postsDb, {}, {id: 1}, {...reference, from: 'a'}, all)).toBe(
 				builder
 			);
-			expect(builder.insertIntoTableWithReferenceIf(false, 'j', 'posts', {}, {...reference, from: 'a'}, all)).toBe(builder);
+			expect(builder.insertIntoTable('h', 'posts', {title: 'T', content: 'C', userId: 1}, all)).toBe(builder);
+			expect(
+				builder.insertIntoTableWithReference('i', 'posts', {title: 'T', content: 'C'}, {...reference, from: 'a'}, all)
+			).toBe(builder);
+			expect(builder.insertIntoTableWithReferenceIf(false, 'j', 'posts', {}, {...reference, from: 'a'}, all)).toBe(
+				builder
+			);
 			expect(builder.updateTable('k', 'posts', {content: 'D'}, {id: 1}, all)).toBe(builder);
 			expect(builder.updateTableWithReference('l', 'posts', {}, {id: 1}, {...reference, from: 'a'}, all)).toBe(builder);
 			expect(builder.updateTableIf(false, 'm', 'posts', {content: 'D'}, {id: 1}, all)).toBe(builder);
@@ -354,7 +367,9 @@ describe('ChainedInsertBuilder - rebuilt without regex (0.5.1)', () => {
 					'SELECT * FROM new_user;',
 				].join('\n')
 			);
-			expect(() => users.chain().insertIntoTable('x', 'nope', {}, all)).toThrow("Related table 'nope' is not registered");
+			expect(() => users.chain().insertIntoTable('x', 'nope', {}, all)).toThrow(
+				"Related table 'nope' is not registered"
+			);
 		});
 
 		it('keeps EnhancedTableBase as the same class under its old name', () => {
@@ -371,15 +386,19 @@ describe('ChainedInsertBuilder - rebuilt without regex (0.5.1)', () => {
 			expect(EnhancedTableBase).toBe(TableBase);
 			const legacy = new LegacyUsers();
 			expect(legacy).toBeInstanceOf(TableBase);
-			expect(legacy.chain().insertIntoTable('new_post', 'posts', {title: 'T', content: 'C', userId: 1}, all)).toBeInstanceOf(
-				ChainedInsertBuilder
-			);
+			expect(
+				legacy.chain().insertIntoTable('new_post', 'posts', {title: 'T', content: 'C', userId: 1}, all)
+			).toBeInstanceOf(ChainedInsertBuilder);
 		});
 	});
 
 	describe('predefined SQL values match its placeholders', () => {
 		const custom = (sqlText: string, values?: unknown[]) =>
-			usersDb.selectWithCustomSchema({allowedColumns: ['id'], predefinedSQL: {sqlText, values}, options: {where: {id: 1}}});
+			usersDb.selectWithCustomSchema({
+				allowedColumns: ['id'],
+				predefinedSQL: {sqlText, values},
+				options: {where: {id: 1}},
+			});
 
 		it('throws when the values do not match the highest placeholder', () => {
 			expect(() => custom('SELECT id FROM users', ['unused'])).toThrow(QueryInputError);
@@ -414,7 +433,9 @@ describe('ChainedInsertBuilder - rebuilt without regex (0.5.1)', () => {
 		});
 
 		it('does not check predefined SQL that passes no values', () => {
-			expect(custom('SELECT id FROM users').query.sqlText).toBe('SELECT * FROM (\nSELECT id FROM users\n) AS q WHERE "id" = $1');
+			expect(custom('SELECT id FROM users').query.sqlText).toBe(
+				'SELECT * FROM (\nSELECT id FROM users\n) AS q WHERE "id" = $1'
+			);
 		});
 	});
 });

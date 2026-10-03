@@ -204,9 +204,7 @@ describe('Table Operations - Advanced Query Operations', () => {
 		it('rejects an offset that is not a non-negative integer', () => {
 			const payloads = ['1; DELETE FROM users', '(SELECT pg_sleep(5))', '-1', '1.5', '', null, true, {}];
 			for (const offset of payloads) {
-				expect(() => usersTable.selectUsers(['id', 'name'], {where: {offset} as any})).toThrow(
-					/Invalid offset value/
-				);
+				expect(() => usersTable.selectUsers(['id', 'name'], {where: {offset} as any})).toThrow(/Invalid offset value/);
 			}
 		});
 

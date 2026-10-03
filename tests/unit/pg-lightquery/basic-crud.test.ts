@@ -274,9 +274,9 @@ describe('Table Operations - Basic CRUD Operations', () => {
 		const injected = 'id"; DROP TABLE users; --';
 
 		it('rejects a returnField with a double quote in an insert', () => {
-			expect(() =>
-				usersTable.insertUser(['name'], {data: {name: 'John Doe'}, returnField: injected as any})
-			).toThrow(/Invalid returnField/);
+			expect(() => usersTable.insertUser(['name'], {data: {name: 'John Doe'}, returnField: injected as any})).toThrow(
+				/Invalid returnField/
+			);
 		});
 
 		it('rejects a returnField with a double quote in an update', () => {

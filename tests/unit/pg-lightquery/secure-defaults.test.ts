@@ -104,9 +104,9 @@ describe('Secure defaults (0.5.0)', () => {
 				missing
 			);
 			expect(() => related.chain().updateTable('post', 'posts', {title: 'T'}, {id: 1})).toThrow(missing);
-			expect(() =>
-				related.chain().updateTableWithReference('post', 'posts', {title: 'T'}, {id: 1}, reference)
-			).toThrow(missing);
+			expect(() => related.chain().updateTableWithReference('post', 'posts', {title: 'T'}, {id: 1}, reference)).toThrow(
+				missing
+			);
 		});
 
 		it('writes only the listed columns in a chained step', () => {
@@ -144,13 +144,14 @@ describe('Secure defaults (0.5.0)', () => {
 			expect(() => selectSql({nmae: 'Ann'})).toThrow(QueryInputError);
 			expect(() => selectSql({nmae: 'Ann'})).toThrow('Unknown column in query parameters: nmae');
 			// A column of the table that the allow-list leaves out is unknown too.
-			expect(() => selectSql({lastChangedBy: 'SERVER'})).toThrow(
-				'Unknown column in query parameters: lastChangedBy'
-			);
+			expect(() => selectSql({lastChangedBy: 'SERVER'})).toThrow('Unknown column in query parameters: lastChangedBy');
 		});
 
 		it('drops the same key with ignoreUnknownKeys, and keeps the known ones', () => {
-			const query = selectSql({nmae: 'Ann', lastChangedBy: 'SERVER', 'nmae.like': 'A%', id: 1}, {ignoreUnknownKeys: true});
+			const query = selectSql(
+				{nmae: 'Ann', lastChangedBy: 'SERVER', 'nmae.like': 'A%', id: 1},
+				{ignoreUnknownKeys: true}
+			);
 
 			expect(query.sqlText).toBe('SELECT "id", "name", "email" FROM users WHERE "id" = $1');
 			expect(query.values).toEqual([1]);
@@ -419,7 +420,9 @@ describe('Secure defaults (0.5.0)', () => {
 
 		it('rejects a maxLimit that is not a non-negative integer when the table is defined', () => {
 			for (const maxLimit of [-1, 1.5, '100' as any, NaN]) {
-				expect(() => new DatabaseOperations({...usersDefinition, maxLimit})).toThrow(/Invalid maxLimit for table users/);
+				expect(() => new DatabaseOperations({...usersDefinition, maxLimit})).toThrow(
+					/Invalid maxLimit for table users/
+				);
 			}
 		});
 	});
@@ -455,8 +458,10 @@ describe('Secure defaults (0.5.0)', () => {
 
 	describe('conflict target for upserts', () => {
 		const upsert = (data: Record<string, unknown>, onConflict: any) =>
-			usersDb.insert({allowedColumns: ['id', 'name', 'email'], options: {data: data as any, onConflict, returnField: 'id'}})
-				.query.sqlText;
+			usersDb.insert({
+				allowedColumns: ['id', 'name', 'email'],
+				options: {data: data as any, onConflict, returnField: 'id'},
+			}).query.sqlText;
 
 		it('targets the named unique column and never rewrites it or the primary key', () => {
 			expect(upsert({id: 5, name: 'Ann', email: 'ann@example.com'}, {target: ['email']})).toBe(
@@ -512,7 +517,9 @@ describe('Secure defaults (0.5.0)', () => {
 			],
 			[
 				'an update with no column to write',
-				() => usersDb.update({allowedColumns: ['name'], options: {data: {}, where: {id: 1}} as any}) && postsDb.update({allowedColumns: ['title'], options: {data: {}, where: {id: 1}}}),
+				() =>
+					usersDb.update({allowedColumns: ['name'], options: {data: {}, where: {id: 1}} as any}) &&
+					postsDb.update({allowedColumns: ['title'], options: {data: {}, where: {id: 1}}}),
 			],
 		];
 

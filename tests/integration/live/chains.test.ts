@@ -10,11 +10,21 @@ import AddressesTable from '../../tables/entities/AddressesTable';
 import {UsersSchema, usersColumns} from '../../tables/definitions/users';
 import {PostsSchema, postsColumns} from '../../tables/definitions/posts';
 import {AddressesSchema, addressesColumns} from '../../tables/definitions/addresses';
-import {describeLive, createLiveSchema, dropLiveSchema, fixtureTablesDdl, countIdleInTransaction, LiveSchema} from './live-setup';
+import {
+	describeLive,
+	createLiveSchema,
+	dropLiveSchema,
+	fixtureTablesDdl,
+	countIdleInTransaction,
+	LiveSchema,
+} from './live-setup';
 
 const usersDefinition: TableDefinition<UsersSchema> = {tableName: 'users', schema: {columns: usersColumns}};
 const postsDefinition: TableDefinition<PostsSchema> = {tableName: 'posts', schema: {columns: postsColumns}};
-const addressesDefinition: TableDefinition<AddressesSchema> = {tableName: 'addresses', schema: {columns: addressesColumns}};
+const addressesDefinition: TableDefinition<AddressesSchema> = {
+	tableName: 'addresses',
+	schema: {columns: addressesColumns},
+};
 
 // A table class that registers its related tables and names them in a chain.
 class UsersWithRelations extends TableBase<UsersSchema> {
@@ -72,7 +82,12 @@ describeLive('live: chained inserts and updates (0.5.1)', () => {
 
 	it('inserts a user, a post and an address in one statement, with table classes', async () => {
 		const chain = createChainedInsert()
-			.insert('new_user', usersTable, {name: 'Ann', email: 'ann@example.com'}, {allowedColumns: ['name', 'email'], returnField: '*'})
+			.insert(
+				'new_user',
+				usersTable,
+				{name: 'Ann', email: 'ann@example.com'},
+				{allowedColumns: ['name', 'email'], returnField: '*'}
+			)
 			.insertWithReference(
 				'new_post',
 				postsTable,
@@ -129,7 +144,13 @@ describeLive('live: chained inserts and updates (0.5.1)', () => {
 
 		// The update is called first, so it is written first and the insert can read its result.
 		const chain = createChainedInsert()
-			.update('renamed', usersTable, {name: 'Dave Renamed'}, {id: dave.id}, {allowedColumns: ['name'], returnField: 'id'})
+			.update(
+				'renamed',
+				usersTable,
+				{name: 'Dave Renamed'},
+				{id: dave.id},
+				{allowedColumns: ['name'], returnField: 'id'}
+			)
 			.insertWithReference(
 				'new_post',
 				postsTable,
@@ -151,11 +172,19 @@ describeLive('live: chained inserts and updates (0.5.1)', () => {
 			.insertUser(['name', 'email'], {data: {name: 'Eve', email: 'eve@example.com'}, returnField: 'id'})
 			.execute();
 		const [post] = await postsTable
-			.insertPost(['userId', 'title', 'content'], {data: {userId: eve.id, title: 'Mine', content: 'x'}, returnField: 'id'})
+			.insertPost(['userId', 'title', 'content'], {
+				data: {userId: eve.id, title: 'Mine', content: 'x'},
+				returnField: 'id',
+			})
 			.execute();
 
 		const chain = createChainedInsert()
-			.insert('new_owner', usersTable, {name: 'Fay', email: 'fay@example.com'}, {allowedColumns: ['name', 'email'], returnField: 'id'})
+			.insert(
+				'new_owner',
+				usersTable,
+				{name: 'Fay', email: 'fay@example.com'},
+				{allowedColumns: ['name', 'email'], returnField: 'id'}
+			)
 			.updateWithReference(
 				'moved_post',
 				postsTable,
@@ -177,11 +206,19 @@ describeLive('live: chained inserts and updates (0.5.1)', () => {
 			.insertUser(['name', 'email'], {data: {name: 'Gus', email: 'gus@example.com'}, returnField: 'id'})
 			.execute();
 		const [existing] = await postsTable
-			.insertPost(['userId', 'title', 'content'], {data: {userId: gus.id, title: 'Old title', content: 'old'}, returnField: 'id'})
+			.insertPost(['userId', 'title', 'content'], {
+				data: {userId: gus.id, title: 'Old title', content: 'old'},
+				returnField: 'id',
+			})
 			.execute();
 
 		const chain = createChainedInsert()
-			.insert('new_owner', usersTable, {name: 'Hal', email: 'hal@example.com'}, {allowedColumns: ['name', 'email'], returnField: 'id'})
+			.insert(
+				'new_owner',
+				usersTable,
+				{name: 'Hal', email: 'hal@example.com'},
+				{allowedColumns: ['name', 'email'], returnField: 'id'}
+			)
 			.insertWithReference(
 				'upserted_post',
 				postsTable,
@@ -206,7 +243,12 @@ describeLive('live: chained inserts and updates (0.5.1)', () => {
 
 	it('rolls the whole chain back when one step fails', async () => {
 		const failed = createChainedInsert()
-			.insert('new_user', usersTable, {name: 'Ivy', email: 'ivy@example.com'}, {allowedColumns: ['name', 'email'], returnField: 'id'})
+			.insert(
+				'new_user',
+				usersTable,
+				{name: 'Ivy', email: 'ivy@example.com'},
+				{allowedColumns: ['name', 'email'], returnField: 'id'}
+			)
 			.insertWithReference(
 				'new_post',
 				postsTable,

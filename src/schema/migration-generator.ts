@@ -69,7 +69,9 @@ const LINE_TERMINATOR = /[\r\n\u2028\u2029]/;
 const LINE_TERMINATORS = /\r\n|[\n\r\u2028\u2029]/g;
 
 function printable(value: string): string {
-	return JSON.stringify(value).replace(/\u2028/g, '\\u2028').replace(/\u2029/g, '\\u2029');
+	return JSON.stringify(value)
+		.replace(/\u2028/g, '\\u2028')
+		.replace(/\u2029/g, '\\u2029');
 }
 
 /**
@@ -625,11 +627,7 @@ function renderNodePgMigrate(steps: MigrationStep[], language: 'ts' | 'js'): str
 	const prefix = `${indent}// `;
 	const body = steps.map((step) => {
 		// A raw \r inside a template literal is read back as \n, so it is written as an escape.
-		const literal = step.sql
-			.replace(/\\/g, '\\\\')
-			.replace(/`/g, '\\`')
-			.replace(/\$\{/g, '\\${')
-			.replace(/\r/g, '\\r');
+		const literal = step.sql.replace(/\\/g, '\\\\').replace(/`/g, '\\`').replace(/\$\{/g, '\\${').replace(/\r/g, '\\r');
 		const call = `pgm.sql(\`${literal}\`);`; // no re-indenting: the file runs exactly the reviewed SQL
 		if (step.review) return `${commentOut(`REVIEW: ${step.note}`, prefix)}\n${commentOut(call, prefix)}`;
 		return step.note ? `${commentOut(step.note, prefix)}\n${indent}${call}` : `${indent}${call}`;

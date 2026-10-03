@@ -76,7 +76,13 @@ describe('packed tarball', () => {
 		const exported = JSON.parse(runNode(`console.log(JSON.stringify(Object.keys(require('pg-lightquery')).sort()))`));
 
 		expect(exported).toEqual(
-			expect.arrayContaining(['TableBase', 'EnhancedTableBase', 'PostgresConnection', 'createChainedInsert', 'sqlExpression'])
+			expect.arrayContaining([
+				'TableBase',
+				'EnhancedTableBase',
+				'PostgresConnection',
+				'createChainedInsert',
+				'sqlExpression',
+			])
 		);
 		// The schema tools are served from pg-lightquery/schema only.
 		expect(exported).not.toContain('checkSchemaDrift');

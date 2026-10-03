@@ -150,7 +150,10 @@ describe('consumer chains', () => {
 		});
 
 		it('builds the chain with a fee', () => {
-			const {queries} = new TransactionsTable().insertTransactionWithTransactionRef({...transactionInput, feeAmount: 3.5});
+			const {queries} = new TransactionsTable().insertTransactionWithTransactionRef({
+				...transactionInput,
+				feeAmount: 3.5,
+			});
 
 			expect(queries[0].sqlText).toBe(
 				[

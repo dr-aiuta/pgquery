@@ -62,7 +62,7 @@ describe('stopgap for 0.0.x: check the where object first', () => {
 		expect(() => assertSafeWhere({'id.orderBy': 'ASC; DROP TABLE users'}, columns)).toThrow(/Sort direction/);
 		expect(() => assertSafeWhere({'id" = $1 OR true OR "id': 1}, columns)).toThrow(/Unknown column/);
 		expect(() => assertSafeWhere({password: 'x'}, columns)).toThrow(/Unknown column/);
-		expect(() => assertSafeWhere({settings: {"theme' = $1 OR true OR \"settings\" ->> 'theme": 'x'}}, columns)).toThrow(
+		expect(() => assertSafeWhere({settings: {'theme\' = $1 OR true OR "settings" ->> \'theme': 'x'}}, columns)).toThrow(
 			/Unsafe JSON key/
 		);
 	});

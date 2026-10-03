@@ -73,7 +73,8 @@ describe('PostgresConnection', () => {
 		let defaultConnect: any;
 		let failOn: Map<string, Error>;
 
-		const uniqueViolation = () => Object.assign(new Error('duplicate key value violates unique constraint'), {code: '23505'});
+		const uniqueViolation = () =>
+			Object.assign(new Error('duplicate key value violates unique constraint'), {code: '23505'});
 
 		beforeEach(() => {
 			jest.spyOn(console, 'log').mockImplementation(() => undefined);

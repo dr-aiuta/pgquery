@@ -73,8 +73,7 @@ export type Mutable<T> = {
 export type ConditionSuffixes = 'not' | 'startDate' | 'endDate' | 'like' | 'in' | 'orderBy' | 'null';
 
 export type QueryConditionKeys<T extends Record<string, ColumnDefinition>> =
-	| Extract<keyof SchemaToData<T>, string>
-	| `${Extract<keyof SchemaToData<T>, string>}.${ConditionSuffixes}`;
+	Extract<keyof SchemaToData<T>, string> | `${Extract<keyof SchemaToData<T>, string>}.${ConditionSuffixes}`;
 
 export type QueryParams<T extends Record<string, ColumnDefinition>> = {
 	[key in QueryConditionKeys<T>]?: any;
@@ -116,10 +115,10 @@ export type UniqueArray<T> = T extends readonly [infer X, ...infer Rest]
 export type InArray<T, X> = T extends readonly [X, ...infer _Rest]
 	? true
 	: T extends readonly [X]
-	? true
-	: T extends readonly [infer _, ...infer Rest]
-	? InArray<Rest, X>
-	: false;
+		? true
+		: T extends readonly [infer _, ...infer Rest]
+			? InArray<Rest, X>
+			: false;
 
 // Query and option types
 export type QueryObject = {

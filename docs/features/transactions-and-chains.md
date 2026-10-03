@@ -72,11 +72,11 @@ const inserted = await PostgresConnection.transaction(
 
 ## Forms
 
-| Call | Runs | Resolves to | Since |
-|---|---|---|---|
-| `table.transaction().add(query).execute()` | every added query, in order | an array of pg results | atomic since 0.4.7 |
-| `PostgresConnection.transaction(queries)` | every query object in the array, in order | an array of pg results | 0.4.7 |
-| `PostgresConnection.transaction(text, params)` | one statement | one pg result | |
+| Call                                           | Runs                                      | Resolves to            | Since              |
+| ---------------------------------------------- | ----------------------------------------- | ---------------------- | ------------------ |
+| `table.transaction().add(query).execute()`     | every added query, in order               | an array of pg results | atomic since 0.4.7 |
+| `PostgresConnection.transaction(queries)`      | every query object in the array, in order | an array of pg results | 0.4.7              |
+| `PostgresConnection.transaction(text, params)` | one statement                             | one pg result          |                    |
 
 A query object has the shape `{sqlText: string, values: any[]}`.
 
@@ -109,7 +109,12 @@ A chain builds one `WITH` statement. Each step is an insert or an update with a 
 import {createChainedInsert} from 'pg-lightquery';
 
 const chain = createChainedInsert()
-	.insert('new_user', usersTable, {name: 'Ann', email: 'ann@example.com'}, {allowedColumns: ['name', 'email'], returnField: '*'})
+	.insert(
+		'new_user',
+		usersTable,
+		{name: 'Ann', email: 'ann@example.com'},
+		{allowedColumns: ['name', 'email'], returnField: '*'}
+	)
 	.insertWithReference(
 		'new_post',
 		postsTable,
@@ -133,15 +138,15 @@ const user = results[0].rows[0];
 
 ### Steps
 
-| Method | Adds |
-|---|---|
-| `insert(name, table, data, options)` | an insert |
-| `insertWithReference(name, table, data, reference, options)` | an insert that reads a field of an earlier step |
-| `insertWithReferenceIf(condition, name, table, data, reference, options)` | the same, only when `condition` is true |
-| `update(name, table, data, where, options)` | an update |
-| `updateWithReference(name, table, data, where, reference, options)` | an update that reads a field of an earlier step |
-| `updateIf(condition, ...)`, `updateWithReferenceIf(condition, ...)` | the same, only when `condition` is true |
-| `selectFrom(name, columns)` | the final `SELECT`. `columns` is `'*'`, one column name, or an array of column names. |
+| Method                                                                    | Adds                                                                                  |
+| ------------------------------------------------------------------------- | ------------------------------------------------------------------------------------- |
+| `insert(name, table, data, options)`                                      | an insert                                                                             |
+| `insertWithReference(name, table, data, reference, options)`              | an insert that reads a field of an earlier step                                       |
+| `insertWithReferenceIf(condition, name, table, data, reference, options)` | the same, only when `condition` is true                                               |
+| `update(name, table, data, where, options)`                               | an update                                                                             |
+| `updateWithReference(name, table, data, where, reference, options)`       | an update that reads a field of an earlier step                                       |
+| `updateIf(condition, ...)`, `updateWithReferenceIf(condition, ...)`       | the same, only when `condition` is true                                               |
+| `selectFrom(name, columns)`                                               | the final `SELECT`. `columns` is `'*'`, one column name, or an array of column names. |
 
 Every step takes `allowedColumns` in its options. It is required, as it is for `insert` and `update`. A step also takes `returnField`, which defaults to `'*'`, and `idUser`. An insert step takes `onConflict`.
 
@@ -210,11 +215,11 @@ class UsersWithRelations extends TableBase<UsersSchema> {
 }
 ```
 
-| Method of `TableBase` | What it does |
-|---|---|
-| `registerRelatedTable(name, {tableDefinition})` | registers a table under a name |
-| `getRelatedTable(name)` | returns the operations object of a registered table |
-| `createChainedInsert()` | returns a chain that knows the registered tables |
+| Method of `TableBase`                           | What it does                                        |
+| ----------------------------------------------- | --------------------------------------------------- |
+| `registerRelatedTable(name, {tableDefinition})` | registers a table under a name                      |
+| `getRelatedTable(name)`                         | returns the operations object of a registered table |
+| `createChainedInsert()`                         | returns a chain that knows the registered tables    |
 
 The name-based steps take a registered name where the other steps take a table: `insertIntoTable`, `insertIntoTableWithReference`, `insertIntoTableWithReferenceIf`, `updateTable`, `updateTableWithReference` and `updateTableIf`. They work on a chain that came from `createChainedInsert()` of a table class. On a chain from the standalone `createChainedInsert()` they throw, because that chain has no registered tables.
 

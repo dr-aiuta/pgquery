@@ -278,8 +278,7 @@ export class ChainedInsertBuilder {
 	 */
 	public selectFrom(cteName: string, columns: string | string[] = '*'): this {
 		const names = Array.isArray(columns) ? columns : [columns];
-		const columnList =
-			columns === '*' ? '*' : names.map((column) => ident(column, 'selectFrom column')).join(', ');
+		const columnList = columns === '*' ? '*' : names.map((column) => ident(column, 'selectFrom column')).join(', ');
 		if (columnList === '') {
 			throw new QueryInputError(`Invalid selectFrom columns. Expected '*', a column name or an array of column names.`);
 		}

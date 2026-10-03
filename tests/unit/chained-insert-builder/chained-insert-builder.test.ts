@@ -136,16 +136,28 @@ describe('ChainedInsertBuilder - Reusability Tests', () => {
 
 			const chainedInsert = createChainedInsert()
 				.insert('new_user', usersDb, userData, {allowedColumns: '*', returnField: '*'})
-				.insertWithReference('new_post', postsDb, postData, {
-					from: 'new_user',
-					field: 'id',
-					to: 'userId',
-				}, {allowedColumns: '*'})
-				.insertWithReference('new_address', addressesDb, addressData, {
-					from: 'new_user',
-					field: 'id',
-					to: 'userId',
-				}, {allowedColumns: '*'})
+				.insertWithReference(
+					'new_post',
+					postsDb,
+					postData,
+					{
+						from: 'new_user',
+						field: 'id',
+						to: 'userId',
+					},
+					{allowedColumns: '*'}
+				)
+				.insertWithReference(
+					'new_address',
+					addressesDb,
+					addressData,
+					{
+						from: 'new_user',
+						field: 'id',
+						to: 'userId',
+					},
+					{allowedColumns: '*'}
+				)
 				.selectFrom('new_user')
 				.build();
 
@@ -177,11 +189,18 @@ describe('ChainedInsertBuilder - Reusability Tests', () => {
 
 			const chainedInsert = createChainedInsert()
 				.insert('new_user', usersDb, userData, {allowedColumns: '*', returnField: '*'})
-				.insertWithReferenceIf(shouldCreatePost, 'new_post', postsDb, postData, {
-					from: 'new_user',
-					field: 'id',
-					to: 'userId',
-				}, {allowedColumns: '*'})
+				.insertWithReferenceIf(
+					shouldCreatePost,
+					'new_post',
+					postsDb,
+					postData,
+					{
+						from: 'new_user',
+						field: 'id',
+						to: 'userId',
+					},
+					{allowedColumns: '*'}
+				)
 				.selectFrom('new_user')
 				.build();
 
@@ -204,11 +223,18 @@ describe('ChainedInsertBuilder - Reusability Tests', () => {
 
 			const chainedInsert = createChainedInsert()
 				.insert('new_user', usersDb, userData, {allowedColumns: '*', returnField: '*'})
-				.insertWithReferenceIf(shouldCreatePost, 'new_post', postsDb, postData, {
-					from: 'new_user',
-					field: 'id',
-					to: 'userId',
-				}, {allowedColumns: '*'})
+				.insertWithReferenceIf(
+					shouldCreatePost,
+					'new_post',
+					postsDb,
+					postData,
+					{
+						from: 'new_user',
+						field: 'id',
+						to: 'userId',
+					},
+					{allowedColumns: '*'}
+				)
 				.selectFrom('new_user')
 				.build();
 
@@ -278,8 +304,20 @@ describe('ChainedInsertBuilder - Reusability Tests', () => {
 
 			const chainedInsert = createChainedInsert()
 				.insert('user', usersDb, userData, {allowedColumns: '*', returnField: '*'})
-				.insertWithReference('post', postsDb, postData, {from: 'user', field: 'id', to: 'userId'}, {allowedColumns: '*'})
-				.insertWithReference('address', addressesDb, addressData, {from: 'user', field: 'id', to: 'userId'}, {allowedColumns: '*'})
+				.insertWithReference(
+					'post',
+					postsDb,
+					postData,
+					{from: 'user', field: 'id', to: 'userId'},
+					{allowedColumns: '*'}
+				)
+				.insertWithReference(
+					'address',
+					addressesDb,
+					addressData,
+					{from: 'user', field: 'id', to: 'userId'},
+					{allowedColumns: '*'}
+				)
 				.selectFrom('user')
 				.build();
 
@@ -348,17 +386,30 @@ describe('ChainedInsertBuilder - Reusability Tests', () => {
 				// Create the user account
 				.insert('new_customer', usersDb, userData, {allowedColumns: '*', returnField: '*'})
 				// Create welcome post
-				.insertWithReference('welcome_post', postsDb, welcomePost, {
-					from: 'new_customer',
-					field: 'id',
-					to: 'userId',
-				}, {allowedColumns: '*'})
+				.insertWithReference(
+					'welcome_post',
+					postsDb,
+					welcomePost,
+					{
+						from: 'new_customer',
+						field: 'id',
+						to: 'userId',
+					},
+					{allowedColumns: '*'}
+				)
 				// Conditionally create shipping address
-				.insertWithReferenceIf(hasShippingAddress, 'billing_address', addressesDb, billingAddress, {
-					from: 'new_customer',
-					field: 'id',
-					to: 'userId',
-				}, {allowedColumns: '*'})
+				.insertWithReferenceIf(
+					hasShippingAddress,
+					'billing_address',
+					addressesDb,
+					billingAddress,
+					{
+						from: 'new_customer',
+						field: 'id',
+						to: 'userId',
+					},
+					{allowedColumns: '*'}
+				)
 				.selectFrom('new_customer')
 				.build();
 
@@ -388,16 +439,30 @@ describe('ChainedInsertBuilder - Reusability Tests', () => {
 
 			const chainedInsert = createChainedInsert()
 				.insert('user', usersDb, userData, {allowedColumns: '*', returnField: '*'})
-				.insertWithReferenceIf(createPost, 'post1', postsDb, postData, {
-					from: 'user',
-					field: 'id',
-					to: 'userId',
-				}, {allowedColumns: '*'})
-				.insertWithReferenceIf(createAddress, 'address', addressesDb, addressData, {
-					from: 'user',
-					field: 'id',
-					to: 'userId',
-				}, {allowedColumns: '*'})
+				.insertWithReferenceIf(
+					createPost,
+					'post1',
+					postsDb,
+					postData,
+					{
+						from: 'user',
+						field: 'id',
+						to: 'userId',
+					},
+					{allowedColumns: '*'}
+				)
+				.insertWithReferenceIf(
+					createAddress,
+					'address',
+					addressesDb,
+					addressData,
+					{
+						from: 'user',
+						field: 'id',
+						to: 'userId',
+					},
+					{allowedColumns: '*'}
+				)
 				.insertWithReferenceIf(
 					createSecondPost,
 					'post2',

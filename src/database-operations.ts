@@ -84,7 +84,9 @@ export class DatabaseOperations<T extends Record<string, {type: keyof ColumnType
 		};
 		const {maxLimit} = tableDefinition;
 		if (maxLimit !== undefined && (!Number.isInteger(maxLimit) || maxLimit < 0)) {
-			throw new Error(`Invalid maxLimit for table ${this.tableName}: ${String(maxLimit)}. Expected a non-negative integer.`);
+			throw new Error(
+				`Invalid maxLimit for table ${this.tableName}: ${String(maxLimit)}. Expected a non-negative integer.`
+			);
 		}
 		this.maxLimit = maxLimit;
 	}
@@ -205,7 +207,9 @@ export class DatabaseOperations<T extends Record<string, {type: keyof ColumnType
 			// No schema to expand '*' with. queryConstructor still restricts fields to plain identifiers.
 			filterColumns = ['*'];
 		} else if (listIsChecked || allowedColumns === '*') {
-			filterColumns = this.treatAllowedColumns(allowedColumns as (keyof T)[] | '*', ['limit', 'offset'], schema).map(quote);
+			filterColumns = this.treatAllowedColumns(allowedColumns as (keyof T)[] | '*', ['limit', 'offset'], schema).map(
+				quote
+			);
 		} else {
 			filterColumns = (allowedColumns as unknown[]).map(quote).concat(PAGING_KEYS.map(quote));
 		}
@@ -302,13 +306,7 @@ export class DatabaseOperations<T extends Record<string, {type: keyof ColumnType
 		const keptOnConflict = [...new Set([...this.schema.primaryKeys, ...conflictTarget])];
 
 		const {columnsNamesForInsert, columnValuesForInsert, expressionsForInsert, assignmentsForConflictUpdate} =
-			extractInsertAndUpdateAssignmentParts(
-				data,
-				treatedAllowedColumns,
-				this.schema.columns,
-				keptOnConflict,
-				idUser
-			);
+			extractInsertAndUpdateAssignmentParts(data, treatedAllowedColumns, this.schema.columns, keptOnConflict, idUser);
 
 		const {sqlText, values} = buildInsertSqlQuery(
 			this.tableName,
@@ -532,7 +530,9 @@ export function operationsOf<T extends Record<string, {type: keyof ColumnTypeMap
 	}
 	const operations = typeof table === 'object' && table !== null ? operationsOfTable.get(table) : undefined;
 	if (!operations) {
-		throw new QueryInputError('Invalid table for a chain step. Pass a table class instance, or a registered table name.');
+		throw new QueryInputError(
+			'Invalid table for a chain step. Pass a table class instance, or a registered table name.'
+		);
 	}
 	return operations;
 }

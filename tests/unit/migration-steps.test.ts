@@ -1,11 +1,5 @@
 import {buildSteps} from '../../src/schema/migration-generator';
-import {
-	key,
-	ResolvedTable,
-	SchemaCatalog,
-	SchemaDriftIssue,
-	SchemaDriftKind,
-} from '../../src/schema/schema-drift';
+import {key, ResolvedTable, SchemaCatalog, SchemaDriftIssue, SchemaDriftKind} from '../../src/schema/schema-drift';
 import {ColumnDefinition} from '../../src/types';
 
 /**
@@ -157,7 +151,11 @@ describe('buildSteps with hand-built drift issues', () => {
 				review: true,
 				note: `Fails if rows contain NULL. Backfill first, e.g. UPDATE ${T} SET "title" = ... WHERE "title" IS NULL.`,
 			},
-			{sql: `ALTER TABLE ${T} ALTER COLUMN "summary" DROP NOT NULL`, review: true, note: 'Removes a NOT NULL constraint.'},
+			{
+				sql: `ALTER TABLE ${T} ALTER COLUMN "summary" DROP NOT NULL`,
+				review: true,
+				note: 'Removes a NOT NULL constraint.',
+			},
 		]);
 	});
 

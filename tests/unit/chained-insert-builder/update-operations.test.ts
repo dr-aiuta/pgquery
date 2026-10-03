@@ -131,7 +131,14 @@ describe('ChainedInsertBuilder - Update Operations', () => {
 
 			const chainedOps = createChainedInsert()
 				.insert('new_user', usersDb, userData, {allowedColumns: '*', returnField: '*'})
-				.updateIf(shouldUpdatePost, 'post_update', postsDb, postUpdate, {id: 1}, {allowedColumns: '*', returnField: '*'})
+				.updateIf(
+					shouldUpdatePost,
+					'post_update',
+					postsDb,
+					postUpdate,
+					{id: 1},
+					{allowedColumns: '*', returnField: '*'}
+				)
 				.selectFrom('new_user')
 				.build();
 

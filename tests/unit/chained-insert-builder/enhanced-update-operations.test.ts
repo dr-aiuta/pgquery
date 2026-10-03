@@ -38,7 +38,13 @@ class TestUsersTable extends EnhancedTableBase<UsersSchema> {
 		let chainedBuilder = this.createChainedInsert();
 
 		// Update user
-		chainedBuilder = chainedBuilder.update('user_update', this.db, userData, {id: userId}, {allowedColumns: '*', returnField: '*'});
+		chainedBuilder = chainedBuilder.update(
+			'user_update',
+			this.db,
+			userData,
+			{id: userId},
+			{allowedColumns: '*', returnField: '*'}
+		);
 
 		// Update post if provided
 		if (postData) {
@@ -253,7 +259,9 @@ describe('EnhancedTableBase - Update Operations', () => {
 				}
 
 				public testUnregisteredTable() {
-					return this.createChainedInsert().updateTable('update1', 'unregistered_table', {}, {id: 1}, {allowedColumns: '*'}).build();
+					return this.createChainedInsert()
+						.updateTable('update1', 'unregistered_table', {}, {id: 1}, {allowedColumns: '*'})
+						.build();
 				}
 			}
 

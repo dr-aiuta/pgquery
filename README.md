@@ -46,11 +46,11 @@ Feature pages:
 
 Upgrade guides:
 
-| You are on | You want | Read |
-| ---------- | -------- | ---------------------------------------------------- |
-| 0.4.x      | 0.4.7    | [docs/upgrading/to-0.4.7.md](docs/upgrading/to-0.4.7.md) |
-| 0.4.x      | 0.5.0    | [docs/upgrading/to-0.5.0.md](docs/upgrading/to-0.5.0.md) |
-| 0.5.0      | 0.5.1    | [docs/upgrading/to-0.5.1.md](docs/upgrading/to-0.5.1.md) |
+| You are on | You want | Read                                                         |
+| ---------- | -------- | ------------------------------------------------------------ |
+| 0.4.x      | 0.4.7    | [docs/upgrading/to-0.4.7.md](docs/upgrading/to-0.4.7.md)     |
+| 0.4.x      | 0.5.0    | [docs/upgrading/to-0.5.0.md](docs/upgrading/to-0.5.0.md)     |
+| 0.5.0      | 0.5.1    | [docs/upgrading/to-0.5.1.md](docs/upgrading/to-0.5.1.md)     |
 | 0.0.x      | 0.5.x    | [docs/upgrading/from-0.0.x.md](docs/upgrading/from-0.0.x.md) |
 
 ## Quick Start
@@ -233,7 +233,12 @@ A chain runs several inserts and updates as one statement. A later step can use 
 import {createChainedInsert} from 'pg-lightquery';
 
 const chain = createChainedInsert()
-	.insert('new_user', usersTable, {name: 'Ann', email: 'ann@example.com'}, {allowedColumns: ['name', 'email'], returnField: '*'})
+	.insert(
+		'new_user',
+		usersTable,
+		{name: 'Ann', email: 'ann@example.com'},
+		{allowedColumns: ['name', 'email'], returnField: '*'}
+	)
 	.insertWithReference(
 		'new_post',
 		postsTable,
@@ -524,7 +529,9 @@ class MyTable extends TableBase<MySchema> {
 	complexUpdateOperation() {
 		return this.createChainedInsert()
 			.update('main_update', this, data, where, {allowedColumns: ['name']})
-			.updateTableWithReference('related_update', 'related_table', relatedData, where, reference, {allowedColumns: ['note']})
+			.updateTableWithReference('related_update', 'related_table', relatedData, where, reference, {
+				allowedColumns: ['note'],
+			})
 			.updateTableIf(condition, 'conditional_update', 'related_table', data, where, {allowedColumns: ['note']})
 			.selectFrom('main_update')
 			.build();

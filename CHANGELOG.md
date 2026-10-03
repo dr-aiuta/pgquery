@@ -46,19 +46,19 @@ Schema features, described in [docs/features/schema.md](docs/features/schema.md)
 
 New column types, each with its TypeScript type:
 
-| Column type | TypeScript type |
-| --- | --- |
-| `UUID` | `string` |
-| `SMALLINT` | `number` |
-| `BIGINT` | `string \| number` |
-| `REAL` | `number` |
-| `DOUBLE PRECISION` | `number` |
-| `BOOLEAN` | `boolean` |
-| `JSON` | `unknown` |
-| `JSONB` | `unknown` |
-| `TIME WITHOUT TIME ZONE` | `string` |
-| `TIMESTAMP WITH TIME ZONE` | `Date \| string` |
-| `TIMESTAMPTZ`, an alias of `TIMESTAMP WITH TIME ZONE` | `Date \| string` |
+| Column type                                           | TypeScript type    |
+| ----------------------------------------------------- | ------------------ |
+| `UUID`                                                | `string`           |
+| `SMALLINT`                                            | `number`           |
+| `BIGINT`                                              | `string \| number` |
+| `REAL`                                                | `number`           |
+| `DOUBLE PRECISION`                                    | `number`           |
+| `BOOLEAN`                                             | `boolean`          |
+| `JSON`                                                | `unknown`          |
+| `JSONB`                                               | `unknown`          |
+| `TIME WITHOUT TIME ZONE`                              | `string`           |
+| `TIMESTAMP WITH TIME ZONE`                            | `Date \| string`   |
+| `TIMESTAMPTZ`, an alias of `TIMESTAMP WITH TIME ZONE` | `Date \| string`   |
 
 `BIGINT` is `string | number`, because node-postgres returns it as a string. `JSON` and `JSONB` are `unknown` and need a cast when read.
 

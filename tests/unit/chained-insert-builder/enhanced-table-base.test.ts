@@ -49,22 +49,39 @@ class TestUsersTable extends EnhancedTableBase<UsersSchema> {
 
 		return this.createChainedInsert()
 			.insert('new_user', this.db, userData, {allowedColumns: '*', returnField: '*'})
-			.insertWithReferenceIf(includePost, 'user_post', this.getRelatedTable('posts'), postData, {
-				from: 'new_user',
-				field: 'id',
-				to: 'userId',
-			}, {allowedColumns: '*'})
-			.insertWithReferenceIf(includeAddress, 'user_address', this.getRelatedTable('addresses'), addressData, {
-				from: 'new_user',
-				field: 'id',
-				to: 'userId',
-			}, {allowedColumns: '*'})
+			.insertWithReferenceIf(
+				includePost,
+				'user_post',
+				this.getRelatedTable('posts'),
+				postData,
+				{
+					from: 'new_user',
+					field: 'id',
+					to: 'userId',
+				},
+				{allowedColumns: '*'}
+			)
+			.insertWithReferenceIf(
+				includeAddress,
+				'user_address',
+				this.getRelatedTable('addresses'),
+				addressData,
+				{
+					from: 'new_user',
+					field: 'id',
+					to: 'userId',
+				},
+				{allowedColumns: '*'}
+			)
 			.selectFrom('new_user')
 			.build();
 	}
 
 	public createUserWithMultiplePosts(userData: Partial<UsersData>, postTitles: string[]) {
-		let builder = this.createChainedInsert().insert('new_user', this.db, userData, {allowedColumns: '*', returnField: '*'});
+		let builder = this.createChainedInsert().insert('new_user', this.db, userData, {
+			allowedColumns: '*',
+			returnField: '*',
+		});
 
 		postTitles.forEach((title, index) => {
 			const postData: Partial<PostsData> = {
@@ -72,11 +89,17 @@ class TestUsersTable extends EnhancedTableBase<UsersSchema> {
 				content: `Content for post: ${title}`,
 			};
 
-			builder = builder.insertWithReference(`user_post_${index}`, this.getRelatedTable('posts'), postData, {
-				from: 'new_user',
-				field: 'id',
-				to: 'userId',
-			}, {allowedColumns: '*'});
+			builder = builder.insertWithReference(
+				`user_post_${index}`,
+				this.getRelatedTable('posts'),
+				postData,
+				{
+					from: 'new_user',
+					field: 'id',
+					to: 'userId',
+				},
+				{allowedColumns: '*'}
+			);
 		});
 
 		return builder.selectFrom('new_user').build();

@@ -112,7 +112,11 @@ describeLive('live: secure defaults (0.5.0)', () => {
 				usersDb
 					.insert({
 						allowedColumns: ['name', 'email'],
-						options: {data: {name, email: 'upsert@example.com'}, onConflict: {target: ['email']}, returnField: ['id', 'name']},
+						options: {
+							data: {name, email: 'upsert@example.com'},
+							onConflict: {target: ['email']},
+							returnField: ['id', 'name'],
+						},
 					})
 					.execute();
 
@@ -120,7 +124,9 @@ describeLive('live: secure defaults (0.5.0)', () => {
 			const [second] = await upsert('Second name');
 
 			expect(second).toEqual({id: first.id, name: 'Second name'});
-			const count = await schema.admin.query(`SELECT count(*)::int AS count FROM users WHERE email = 'upsert@example.com'`);
+			const count = await schema.admin.query(
+				`SELECT count(*)::int AS count FROM users WHERE email = 'upsert@example.com'`
+			);
 			expect(count.rows).toEqual([{count: 1}]);
 		});
 
@@ -176,7 +182,10 @@ describeLive('live: secure defaults (0.5.0)', () => {
 
 		it('matches a list of enum values', async () => {
 			const rows = await ticketsDb
-				.select({allowedColumns: ['id', 'status'], options: {where: {'status.in': ['open', 'archived'], 'id.orderBy': 'ASC'}}})
+				.select({
+					allowedColumns: ['id', 'status'],
+					options: {where: {'status.in': ['open', 'archived'], 'id.orderBy': 'ASC'}},
+				})
 				.execute();
 			expect(rows.map((row) => [row.id, row.status])).toEqual([
 				[1, 'open'],
@@ -184,7 +193,9 @@ describeLive('live: secure defaults (0.5.0)', () => {
 				[4, 'open'],
 			]);
 
-			const none = await ticketsDb.select({allowedColumns: ['id', 'status'], options: {where: {'status.in': []}}}).execute();
+			const none = await ticketsDb
+				.select({allowedColumns: ['id', 'status'], options: {where: {'status.in': []}}})
+				.execute();
 			expect(none).toEqual([]);
 		});
 
@@ -256,7 +267,10 @@ describeLive('live: secure defaults (0.5.0)', () => {
 							FROM users u LEFT JOIN posts p ON p."userId" = u.id
 							GROUP BY u.id, u.name`,
 					},
-					options: {where: {'postCount.in': [1, 2], 'id.orderBy': 'ASC'} as any, columnsToReturn: ['name', 'postCount']},
+					options: {
+						where: {'postCount.in': [1, 2], 'id.orderBy': 'ASC'} as any,
+						columnsToReturn: ['name', 'postCount'],
+					},
 				})
 				.execute();
 
@@ -332,7 +346,9 @@ describeLive('live: secure defaults (0.5.0)', () => {
 			logEntries.length = 0;
 			const secret = 'logger-secret@example.com';
 
-			await usersTable.insertUser(['name', 'email'], {data: {name: 'Logged', email: secret}, returnField: 'id'}).execute();
+			await usersTable
+				.insertUser(['name', 'email'], {data: {name: 'Logged', email: secret}, returnField: 'id'})
+				.execute();
 			await usersTable.selectUsers(['id', 'email'], {where: {email: secret}}).execute();
 			const failed = usersTable.insertUser(['name', 'email'], {data: {name: 'Logged again', email: secret}}).execute();
 			await expect(failed).rejects.toHaveProperty('code', '23505');

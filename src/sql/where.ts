@@ -110,7 +110,6 @@ const handleSQLQueryParts: HandleSQLQueryBy = {
 	defaultField,
 };
 
-
 // The suffixes a where key may carry, as in 'name.like'. Any other suffix throws.
 const SUPPORTED_OPERATORS = ['not', 'startDate', 'endDate', 'like', 'in', 'orderBy', 'null'];
 
@@ -181,7 +180,9 @@ export function queryConstructor(
 			const parsed = parsePagingValue(field, value);
 			if (field === 'limit') {
 				if (options.maxLimit !== undefined && parsed > options.maxLimit) {
-					throw new QueryInputError(`Invalid limit value: ${parsed}. The maximum for this table is ${options.maxLimit}.`);
+					throw new QueryInputError(
+						`Invalid limit value: ${parsed}. The maximum for this table is ${options.maxLimit}.`
+					);
 				}
 				limitPart = `LIMIT ${parsed}`;
 			} else {
