@@ -2,10 +2,10 @@ import {QueryResultRow, QueryResult} from 'pg';
 import PostsTable from '../../tables/entities/PostsTable';
 import UsersTable from '../../tables/entities/UsersTable';
 import AddressesTable from '../../tables/entities/AddressesTable';
-import PostgresConnection from '../../../src/connection/postgres-connection';
+import PostgresConnection from '../../../src/connection';
 
 // Mock PostgresConnection
-jest.mock('../../../src/connection/postgres-connection', () => {
+jest.mock('../../../src/connection', () => {
 	const mPool = {
 		connect: jest.fn(),
 		query: jest.fn(),
@@ -49,7 +49,7 @@ jest.mock('../../../src/connection/postgres-connection', () => {
 });
 
 // Import the mocked PostgresConnection
-import dbpg from '../../../src/connection/postgres-connection';
+import dbpg from '../../../src/connection';
 
 // Helper function to create a query result object
 export const createQueryResult = <T extends QueryResultRow>(rows: T[]): QueryResult<T> => ({

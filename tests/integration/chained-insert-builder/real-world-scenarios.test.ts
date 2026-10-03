@@ -1,8 +1,8 @@
 import {setupTests, dbpg, createMockQueryResult} from '../pg-lightquery/test-setup';
-import {createChainedInsert} from '../../../src/utils/chained-insert-builder';
-import {EnhancedTableBase} from '../../../src/core/table-base-extensions';
-import {DatabaseOperations} from '../../../src/core/database-operations';
-import {TableDefinition, ColumnDefinition} from '../../../src/types/core-types';
+import {createChainedInsert} from '../../../src/chained-insert';
+import {EnhancedTableBase} from '../../../src/table-base';
+import {DatabaseOperations} from '../../../src/database-operations';
+import {TableDefinition, ColumnDefinition} from '../../../src/types';
 
 /**
  * Real-world scenario tests demonstrating complete reusability

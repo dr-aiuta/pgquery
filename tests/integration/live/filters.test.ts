@@ -1,4 +1,4 @@
-import {DatabaseOperations} from '../../../src/core/database-operations';
+import {DatabaseOperations} from '../../../src/database-operations';
 import UsersTable from '../../tables/entities/UsersTable';
 import {
 	describeLive,

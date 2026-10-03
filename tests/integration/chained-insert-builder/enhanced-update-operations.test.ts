@@ -1,6 +1,6 @@
 import {setupTests, dbpg, createMockQueryResult} from '../pg-lightquery/test-setup';
-import {EnhancedTableBase} from '../../../src/core/table-base-extensions';
-import {TableDefinition} from '../../../src/types/core-types';
+import {EnhancedTableBase} from '../../../src/table-base';
+import {TableDefinition} from '../../../src/types';
 import {UsersData, UsersSchema, usersColumns} from '../../tables/definitions/users';
 import {PostsData, PostsSchema, postsColumns} from '../../tables/definitions/posts';
 import {AddressesData, AddressesSchema, addressesColumns} from '../../tables/definitions/addresses';

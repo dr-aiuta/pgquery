@@ -1,7 +1,7 @@
 import {setupTests} from '../pg-lightquery/test-setup';
-import {createChainedInsert} from '../../../src/utils/chained-insert-builder';
-import {DatabaseOperations} from '../../../src/core/database-operations';
-import {TableDefinition} from '../../../src/types/core-types';
+import {createChainedInsert} from '../../../src/chained-insert';
+import {DatabaseOperations} from '../../../src/database-operations';
+import {TableDefinition} from '../../../src/types';
 import {UsersData, UsersSchema, usersColumns} from '../../tables/definitions/users';
 import {PostsData, PostsSchema, postsColumns} from '../../tables/definitions/posts';
 

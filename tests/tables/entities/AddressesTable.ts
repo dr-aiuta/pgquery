@@ -1,8 +1,8 @@
 import {TableDefinition} from '../../../src/types';
-import {TableBase} from '../../../src/core/table-base';
+import {TableBase} from '../../../src/table-base';
 import {AddressesSchema, addressesColumns, AddressesData} from '../definitions/addresses';
 import {QueryParams} from '../../../src/types';
-import {QueryResult} from '../../../src/utils/query-utils';
+import {QueryResult} from '../../../src/types';
 
 const addressesTable: TableDefinition<AddressesSchema> = {
 	tableName: 'addresses',

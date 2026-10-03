@@ -1,5 +1,5 @@
-import {buildInsertSqlQuery, buildUpdateSqlQuery, returningClause} from '../../src/utils/query-builder';
-import {UniqueArray} from '../../src/types/utility-types';
+import {buildInsertSqlQuery, buildUpdateSqlQuery, returningClause} from '../../src/sql/write';
+import {UniqueArray} from '../../src/types';
 
 describe('returnField functionality', () => {
 	// Test data setup

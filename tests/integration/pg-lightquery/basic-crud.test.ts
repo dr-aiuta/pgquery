@@ -1,6 +1,6 @@
 import {setupTests, dbpg, usersTable} from './test-setup';
-import {DatabaseOperations} from '../../../src/core/database-operations';
-import {ColumnDefinition, TableDefinition} from '../../../src/types/core-types';
+import {DatabaseOperations} from '../../../src/database-operations';
+import {ColumnDefinition, TableDefinition} from '../../../src/types';
 
 // A table with a two-column primary key, for the upsert cases.
 type PostTagsSchema = {[K in 'postId' | 'tag' | 'note']: ColumnDefinition};

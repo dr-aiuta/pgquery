@@ -1,4 +1,4 @@
-import PostgresConnection from '../connection/postgres-connection';
+import PostgresConnection from '../connection';
 import {BaseColumnType, ColumnDefinition, ForeignKeyAction, TableDefinition} from '../types';
 
 /**

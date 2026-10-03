@@ -1,5 +1,5 @@
-import {TableBase} from '../../src/core/table-base';
-import {QueryInputError} from '../../src/utils/query-input-error';
+import {TableBase} from '../../src/table-base';
+import {QueryInputError} from '../../src/sql/identifiers';
 import {QueryParams} from '../../src/types';
 import {UsersSchema, usersColumns} from '../tables/definitions/users';
 

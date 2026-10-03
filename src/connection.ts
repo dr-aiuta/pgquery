@@ -1,5 +1,5 @@
 import {Pool, PoolClient, PoolConfig, QueryResult} from 'pg';
-import {QueryObject} from '../utils/query-utils';
+import {QueryObject} from './types';
 
 /** What the logger is told about one statement. It never holds bound values. */
 export interface QueryLogEntry {

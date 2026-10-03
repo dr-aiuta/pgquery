@@ -1,7 +1,7 @@
 import {ident, isIdentifier, plainName, tableName} from '../../src/sql/identifiers';
 import {maxPlaceholder, renumber} from '../../src/sql/placeholders';
-import {DatabaseOperations} from '../../src/core/database-operations';
-import {QueryInputError} from '../../src/utils/query-input-error';
+import {DatabaseOperations} from '../../src/database-operations';
+import {QueryInputError} from '../../src/sql/identifiers';
 import {usersColumns} from '../tables/definitions/users';
 
 describe('sql/identifiers', () => {

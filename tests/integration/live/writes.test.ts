@@ -1,5 +1,5 @@
-import {DatabaseOperations} from '../../../src/core/database-operations';
-import {TableDefinition} from '../../../src/types/core-types';
+import {DatabaseOperations} from '../../../src/database-operations';
+import {TableDefinition} from '../../../src/types';
 import UsersTable from '../../tables/entities/UsersTable';
 import {UsersSchema, usersColumns} from '../../tables/definitions/users';
 import {

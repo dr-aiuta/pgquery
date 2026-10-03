@@ -1,13 +1,13 @@
-import PostgresConnection from '../connection/postgres-connection';
-import {QueryObject, AllowedColumns, OnConflict, WriteData} from './query-utils';
-import {SchemaToData} from '../types/core-types';
-import {DatabaseOperations, operationsOf} from '../core/database-operations';
-import type {TableBase} from '../core/table-base';
+import PostgresConnection from './connection';
+import {QueryObject, AllowedColumns, OnConflict, WriteData} from './types';
+import {SchemaToData} from './types';
+import {DatabaseOperations, operationsOf} from './database-operations';
+import type {TableBase} from './table-base';
 import {QueryArrayResult} from 'pg';
-import {QueryInputError} from './query-input-error';
-import {sqlExpression} from './sql-expression';
-import {ident, plainName} from '../sql/identifiers';
-import {renumber} from '../sql/placeholders';
+import {QueryInputError} from './sql/identifiers';
+import {sqlExpression} from './sql/expression';
+import {ident, plainName} from './sql/identifiers';
+import {renumber} from './sql/placeholders';
 
 /**
  * Options of an insert step. allowedColumns is required: every write names its columns.

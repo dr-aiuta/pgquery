@@ -1,5 +1,5 @@
-import {TableDefinition} from '../types/core-types';
-import {ColumnDefinition, SchemaToData, ColumnTypeMapping} from '../types/core-types';
+import {TableDefinition} from './types';
+import {ColumnDefinition, SchemaToData, ColumnTypeMapping} from './types';
 import {QueryArrayResult, QueryResultRow} from 'pg';
 import {
 	QueryResult,
@@ -11,9 +11,9 @@ import {
 	UpdateOptions,
 	CustomBaseOptions,
 	CustomSelectOptions,
-} from '../utils/query-utils';
+} from './types';
 import {DatabaseOperations, registerTableOperations} from './database-operations';
-import {ChainedInsertBuilder} from '../utils/chained-insert-builder';
+import {ChainedInsertBuilder} from './chained-insert';
 
 /**
  * Configuration for related table operations
@@ -238,3 +238,14 @@ export abstract class TableBase<T extends Record<string, {type: keyof ColumnType
 export function createRelatedTablesHelper(): RelatedTablesRegistry {
 	return new RelatedTablesRegistry();
 }
+
+/**
+ * @deprecated Use TableBase. It has registerRelatedTable, getRelatedTable and createChainedInsert itself.
+ * EnhancedTableBase is the same class under its old name, kept so existing table classes keep compiling.
+ */
+export const EnhancedTableBase = TableBase;
+
+/**
+ * @deprecated Use TableBase.
+ */
+export type EnhancedTableBase<T extends Record<string, {type: keyof ColumnTypeMapping}>> = TableBase<T>;

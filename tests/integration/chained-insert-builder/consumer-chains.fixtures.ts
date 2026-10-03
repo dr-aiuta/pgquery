@@ -1,7 +1,7 @@
-import {DatabaseOperations} from '../../../src/core/database-operations';
-import {EnhancedTableBase} from '../../../src/core/table-base-extensions';
-import {createChainedInsert} from '../../../src/utils/chained-insert-builder';
-import {ColumnDefinition, TableDefinition} from '../../../src/types/core-types';
+import {DatabaseOperations} from '../../../src/database-operations';
+import {EnhancedTableBase} from '../../../src/table-base';
+import {createChainedInsert} from '../../../src/chained-insert';
+import {ColumnDefinition, TableDefinition} from '../../../src/types';
 
 /**
  * Four chains, shaped like the ones that applications built on this library run today.

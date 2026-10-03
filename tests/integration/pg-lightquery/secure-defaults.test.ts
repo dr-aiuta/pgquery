@@ -1,10 +1,10 @@
 import {setupTests, dbpg, usersTable} from './test-setup';
-import {DatabaseOperations} from '../../../src/core/database-operations';
-import {TableBase} from '../../../src/core/table-base';
-import {EnhancedTableBase} from '../../../src/core/table-base-extensions';
-import {createChainedInsert} from '../../../src/utils/chained-insert-builder';
-import {QueryInputError} from '../../../src/utils/query-input-error';
-import {TableDefinition} from '../../../src/types/core-types';
+import {DatabaseOperations} from '../../../src/database-operations';
+import {TableBase} from '../../../src/table-base';
+import {EnhancedTableBase} from '../../../src/table-base';
+import {createChainedInsert} from '../../../src/chained-insert';
+import {QueryInputError} from '../../../src/sql/identifiers';
+import {TableDefinition} from '../../../src/types';
 import {UsersSchema, usersColumns} from '../../tables/definitions/users';
 import {PostsSchema, postsColumns} from '../../tables/definitions/posts';
 

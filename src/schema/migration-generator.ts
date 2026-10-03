@@ -1,5 +1,5 @@
 import {ColumnDefinition, TableDefinition} from '../types';
-import {isSqlExpression} from '../utils/sql-expression';
+import {isSqlExpression} from '../sql/expression';
 import {
 	compareWithCatalog,
 	enumTypeFor,

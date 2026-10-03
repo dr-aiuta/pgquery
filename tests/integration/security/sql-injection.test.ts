@@ -1,5 +1,5 @@
 import {setupTests, dbpg, usersTable} from '../pg-lightquery/test-setup';
-import {QueryInputError} from '../../../src/utils/query-input-error';
+import {QueryInputError} from '../../../src/sql/identifiers';
 
 describe('Security - SQL Injection Prevention', () => {
 	setupTests();

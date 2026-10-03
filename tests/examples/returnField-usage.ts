@@ -7,8 +7,8 @@
  * 3. The '*' wildcard to return all fields
  */
 
-import {createChainedInsert} from '../../src/utils/chained-insert-builder';
-import {DatabaseOperations} from '../../src/core/database-operations';
+import {createChainedInsert} from '../../src/chained-insert';
+import {DatabaseOperations} from '../../src/database-operations';
 
 // Example 1: Using returnField with a single field
 // This returns only the 'id' field after the insert

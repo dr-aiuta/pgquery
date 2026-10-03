@@ -1,10 +1,7 @@
-import PostgresConnection from '../connection/postgres-connection';
-import * as queryUtils from '../utils/query-utils';
-import * as queryBuilder from '../utils/query-builder';
-import * as arrayUtils from '../utils/array-utils';
-import * as classUtils from '../utils/class-utils';
-import {TableDefinition} from '../types/core-types';
-import {ColumnDefinition, SchemaToData, ColumnTypeMapping} from '../types/core-types';
+import {v4 as uuidv4} from 'uuid';
+import PostgresConnection from './connection';
+import {TableDefinition} from './types';
+import {ColumnDefinition, SchemaToData, ColumnTypeMapping} from './types';
 import {QueryArrayResult, QueryResultRow} from 'pg';
 import {
 	QueryObject,
@@ -18,12 +15,34 @@ import {
 	UpdateOptions,
 	CustomBaseOptions,
 	CustomSelectOptions,
+} from './types';
+import {
+	extractInsertAndUpdateAssignmentParts,
 	extractUpdateParts,
-} from '../utils/query-utils';
-import {queryConstructor} from './query-constructor';
-import {QueryInputError} from '../utils/query-input-error';
-import {isIdentifier, tableName as checkedTableName} from '../sql/identifiers';
-import {maxPlaceholder, renumber} from '../sql/placeholders';
+	buildInsertSqlQuery,
+	buildUpdateSqlQuery,
+} from './sql/write';
+import {queryConstructor} from './sql/where';
+import {QueryInputError, isIdentifier, tableName as checkedTableName} from './sql/identifiers';
+import {maxPlaceholder, renumber} from './sql/placeholders';
+
+export function checkArrayUniqueness<T>(arrayToBeChecked: T[]): void {
+	// Runtime check for uniqueness
+	const uniqueElements = new Set(arrayToBeChecked);
+	if (uniqueElements.size !== arrayToBeChecked.length) {
+		throw new QueryInputError('Array must contain unique items');
+	}
+}
+
+export function generatePrimaryKey(prefix: string): string {
+	const primaryKeyString = prefix.concat(
+		'_',
+		uuidv4()
+			.replace(/[^a-zA-Z0-9]+/g, '')
+			.toUpperCase()
+	);
+	return primaryKeyString;
+}
 
 type PredefinedSQL = {sqlText: string; values?: any[]};
 
@@ -99,7 +118,7 @@ export class DatabaseOperations<T extends Record<string, {type: keyof ColumnType
 		if (allowedColumns === '*') {
 			treated = Object.keys(schemaColumns || this.schema.columns) as (keyof T)[];
 		} else {
-			arrayUtils.checkArrayUniqueness(allowedColumns);
+			checkArrayUniqueness(allowedColumns);
 			const schemaKeys = new Set(Object.keys(schemaColumns || this.schema.columns));
 
 			// Filter out pagination parameters before schema validation
@@ -205,7 +224,7 @@ export class DatabaseOperations<T extends Record<string, {type: keyof ColumnType
 			if (!Array.isArray(returnColumns)) {
 				throw new QueryInputError(`Invalid columnsToReturn. Expected '*' or an array of column names.`);
 			}
-			arrayUtils.checkArrayUniqueness(returnColumns);
+			checkArrayUniqueness(returnColumns);
 			const columns = returnColumns.filter((column) => !PAGING_KEYS.includes(String(column)));
 			for (const column of columns) {
 				const known = schema ? Object.prototype.hasOwnProperty.call(schema, String(column)) : isIdentifier(column);
@@ -243,7 +262,7 @@ export class DatabaseOperations<T extends Record<string, {type: keyof ColumnType
 		if (!Array.isArray(target) || target.length === 0) {
 			throw new QueryInputError('Invalid onConflict: target must be a non-empty array of columns.');
 		}
-		arrayUtils.checkArrayUniqueness(target);
+		checkArrayUniqueness(target);
 		for (const column of target) {
 			if (typeof column !== 'string' || !Object.prototype.hasOwnProperty.call(this.schema.columns, column)) {
 				throw new QueryInputError(
@@ -255,7 +274,7 @@ export class DatabaseOperations<T extends Record<string, {type: keyof ColumnType
 	}
 
 	public generatePrimaryKey(prefix: string): string {
-		return classUtils.generatePrimaryKey(prefix);
+		return generatePrimaryKey(prefix);
 	}
 
 	/**
@@ -283,7 +302,7 @@ export class DatabaseOperations<T extends Record<string, {type: keyof ColumnType
 		const keptOnConflict = [...new Set([...this.schema.primaryKeys, ...conflictTarget])];
 
 		const {columnsNamesForInsert, columnValuesForInsert, expressionsForInsert, assignmentsForConflictUpdate} =
-			queryUtils.extractInsertAndUpdateAssignmentParts(
+			extractInsertAndUpdateAssignmentParts(
 				data,
 				treatedAllowedColumns,
 				this.schema.columns,
@@ -291,7 +310,7 @@ export class DatabaseOperations<T extends Record<string, {type: keyof ColumnType
 				idUser
 			);
 
-		const {sqlText, values} = queryBuilder.buildInsertSqlQuery(
+		const {sqlText, values} = buildInsertSqlQuery(
 			this.tableName,
 			columnsNamesForInsert,
 			columnValuesForInsert,
@@ -444,7 +463,7 @@ export class DatabaseOperations<T extends Record<string, {type: keyof ColumnType
 			}
 		}
 
-		const {sqlText, values} = queryBuilder.buildUpdateSqlQuery(
+		const {sqlText, values} = buildUpdateSqlQuery(
 			this.tableName,
 			columnsNamesForUpdate,
 			columnValuesForUpdate,

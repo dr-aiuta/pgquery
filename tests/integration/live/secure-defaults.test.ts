@@ -1,9 +1,9 @@
 import {DatabaseError} from 'pg';
-import {DatabaseOperations} from '../../../src/core/database-operations';
-import {TableBase} from '../../../src/core/table-base';
-import {QueryLogEntry} from '../../../src/connection/postgres-connection';
-import {QueryInputError} from '../../../src/utils/query-input-error';
-import {TableDefinition} from '../../../src/types/core-types';
+import {DatabaseOperations} from '../../../src/database-operations';
+import {TableBase} from '../../../src/table-base';
+import {QueryLogEntry} from '../../../src/connection';
+import {QueryInputError} from '../../../src/sql/identifiers';
+import {TableDefinition} from '../../../src/types';
 import UsersTable from '../../tables/entities/UsersTable';
 import PostsTable from '../../tables/entities/PostsTable';
 import {UsersSchema, usersColumns} from '../../tables/definitions/users';

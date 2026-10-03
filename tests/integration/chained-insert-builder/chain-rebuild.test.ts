@@ -1,11 +1,11 @@
 import {setupTests, dbpg, usersTable, postsTable} from '../pg-lightquery/test-setup';
-import {ChainedInsertBuilder, createChainedInsert} from '../../../src/utils/chained-insert-builder';
-import {DatabaseOperations} from '../../../src/core/database-operations';
-import {TableBase} from '../../../src/core/table-base';
-import {EnhancedTableBase} from '../../../src/core/table-base-extensions';
-import {QueryInputError} from '../../../src/utils/query-input-error';
-import {sqlExpression} from '../../../src/utils/sql-expression';
-import {TableDefinition} from '../../../src/types/core-types';
+import {ChainedInsertBuilder, createChainedInsert} from '../../../src/chained-insert';
+import {DatabaseOperations} from '../../../src/database-operations';
+import {TableBase} from '../../../src/table-base';
+import {EnhancedTableBase} from '../../../src/table-base';
+import {QueryInputError} from '../../../src/sql/identifiers';
+import {sqlExpression} from '../../../src/sql/expression';
+import {TableDefinition} from '../../../src/types';
 import {UsersSchema, usersColumns} from '../../tables/definitions/users';
 import {PostsSchema, postsColumns} from '../../tables/definitions/posts';
 import {AddressesSchema, addressesColumns} from '../../tables/definitions/addresses';
