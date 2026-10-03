@@ -455,6 +455,24 @@ console.log(updateQuery.query.sqlText);
 
 Upserts, `returnField` and the `null` rule are described in [Writes: insert, upsert and update](docs/features/writes.md).
 
+### ↩️ Returning Columns
+
+`returnField` decides what an insert or an update returns: one column, a list of columns, or `'*'` for the whole row. Leave it out, or pass an empty list, and nothing is returned.
+
+```typescript
+// inside a table class
+this.insert({allowedColumns: ['name', 'email'], options: {data, returnField: 'id'}});
+// RETURNING "id"
+
+this.insert({allowedColumns: ['name', 'email'], options: {data, returnField: ['id', 'name', 'email']}});
+// RETURNING "id", "name", "email"
+
+this.update({allowedColumns: ['name'], options: {data, where: {id: 1}, returnField: '*'}});
+// RETURNING *
+```
+
+A name must be a column of the table definition. Each step of a chained insert takes its own `returnField`, so a step returns only what a later step or the caller needs. See [Writes: returnField](docs/features/writes.md#returnfield).
+
 ### 📊 Optional Audit Fields
 
 A table whose definition has a column named `lastChangedBy` gets it written on every insert and every update. The value is the `idUser` option, and `'SERVER'` when `idUser` is left out. A table without that column is not affected.
