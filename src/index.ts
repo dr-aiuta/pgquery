@@ -23,6 +23,8 @@ export type {
 	TableDefinition,
 	ColumnsDefinition,
 	DatabaseSchema,
+	ColumnReference,
+	ForeignKeyAction,
 } from './types';
 export type {RequireExactlyOne, UniqueArray, InArray} from './types/utility-types';
 
@@ -37,6 +39,11 @@ export {EnhancedCTEBuilder, createEnhancedCTE} from './utils/enhanced-cte-builde
 export type {CTEReference, CTEConfig} from './utils/enhanced-cte-builder';
 export {CTETransactionBuilder, createCTETransaction} from './utils/cte-transaction-builder';
 export type {CTEStep, CTEInsertConfig} from './utils/cte-transaction-builder';
+
+// Marks an SQL expression, for example a column default: sqlExpression('now()').
+// checkSchemaDrift and generateMigration are served from 'pg-lightquery/schema'.
+export {sqlExpression} from './utils/sql-expression';
+export type {SqlExpression} from './utils/sql-expression';
 
 // Chained Insert features
 export {ChainedInsertBuilder, createChainedInsert} from './utils/chained-insert-builder';

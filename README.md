@@ -41,12 +41,14 @@ Feature pages:
 - [Filters, sorting and paging](docs/features/filters.md)
 - [Transactions and chains](docs/features/transactions-and-chains.md)
 - [Connection](docs/features/connection.md)
+- [Schema: column types, drift check and migration drafts](docs/features/schema.md)
 
 Upgrade guides:
 
 | You are on | You want | Read |
 | ---------- | -------- | ---------------------------------------------------- |
 | 0.4.x      | 0.4.7    | [docs/upgrading/to-0.4.7.md](docs/upgrading/to-0.4.7.md) |
+| 0.4.x      | 0.5.0    | [docs/upgrading/to-0.5.0.md](docs/upgrading/to-0.5.0.md) |
 
 ## Quick Start
 
@@ -582,6 +584,10 @@ const activeUsers = await users
 	})
 	.execute();
 ```
+
+## Migrations & Schema Drift
+
+pg-lightquery does not run migrations. Pair it with a dedicated migration tool, such as [node-pg-migrate](https://github.com/salsita/node-pg-migrate). Your table definitions still drive the work. `generateMigration` compares them with a database and drafts the migration. `checkSchemaDrift` fails fast when a database and the definitions disagree. Both are imported from `pg-lightquery/schema`. The column types, default expressions with `sqlExpression`, foreign keys, both tools and their limits are described in [Schema: column types, drift check and migration drafts](docs/features/schema.md).
 
 ## Testing Made Easy
 

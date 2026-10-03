@@ -1,3 +1,40 @@
+# v0.5.0
+
+Breaking release. A caret range on 0.4.x does not install it. See the upgrade guide: [docs/upgrading/to-0.5.0.md](docs/upgrading/to-0.5.0.md).
+
+Schema features, described in [docs/features/schema.md](docs/features/schema.md):
+
+- `checkSchemaDrift()` compares table definitions with the live catalog and reports every difference. It only reads.
+- `generateMigration()` turns the drift into a draft migration, as a node-pg-migrate file in TypeScript or JavaScript, or as plain SQL. Active steps only add things. Everything that removes or changes something is commented out for review.
+- Both are imported from `pg-lightquery/schema`.
+- `sqlExpression('now()')` marks an SQL expression in a column default. It is exported from the package root.
+- `ColumnDefinition.references` declares a foreign key with `table`, `column`, and optional `onDelete` and `onUpdate`.
+- `ColumnDefinition.enumTypeName` names the PostgreSQL enum type of an `ENUM` column. It defaults to `<table>_<column>`.
+
+New column types, each with its TypeScript type:
+
+| Column type | TypeScript type |
+| --- | --- |
+| `UUID` | `string` |
+| `SMALLINT` | `number` |
+| `BIGINT` | `string \| number` |
+| `REAL` | `number` |
+| `DOUBLE PRECISION` | `number` |
+| `BOOLEAN` | `boolean` |
+| `JSON` | `unknown` |
+| `JSONB` | `unknown` |
+| `TIME WITHOUT TIME ZONE` | `string` |
+| `TIMESTAMP WITH TIME ZONE` | `Date \| string` |
+| `TIMESTAMPTZ`, an alias of `TIMESTAMP WITH TIME ZONE` | `Date \| string` |
+
+`BIGINT` is `string | number`, because node-postgres returns it as a string. `JSON` and `JSONB` are `unknown` and need a cast when read.
+
+Breaking changes:
+
+- TypeScript types only: the column types above used to accept any value. A value of another type, or `null`, no longer compiles for those columns.
+- The package has an `exports` map. Only `pg-lightquery` and `pg-lightquery/schema` can be imported. An import of any other path inside the package, such as `pg-lightquery/dist/...`, fails.
+- A string `default` in a table definition is a literal. Wrap an expression in `sqlExpression(...)`. Exactly `now()`, `CURRENT_TIMESTAMP`, `CURRENT_DATE` and `gen_random_uuid()`, in any case, are still read as expressions. No query reads `default`, so this affects only the schema tools.
+
 # v0.4.7
 
 Safety patch. No API change, and no code change is required. See the upgrade guide: [docs/upgrading/to-0.4.7.md](docs/upgrading/to-0.4.7.md).
