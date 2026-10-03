@@ -9,7 +9,8 @@ import {UniqueArray} from '../types/utility-types';
  * @param dataToBeInserted - An object containing key-value pairs where keys are column names and values are the values to insert.
  * @param allowedColumns - An array of allowed column names (quoted) to include in the insert operation.
  * @param tableColumns - An object representing the table's columns and their definitions.
- * @param primaryKeyColumn - An array of primary key column names to exclude from update assignments.
+ * @param primaryKeyColumn - An array of column names to exclude from update assignments: the primary key
+ *   columns, plus the conflict target columns when the upsert names its own target.
  *
  * @returns An object containing:
  *   - columnsNamesForInsert: Column names to be included in the insert operation.
@@ -32,7 +33,8 @@ export function extractInsertAndUpdateAssignmentParts<T extends Record<string, C
 	const assignmentsForConflictUpdate: string[] = [];
 
 	Object.entries(dataToBeInserted).forEach(([column, value]) => {
-		if (allowedColumns.includes(column as keyof T) && value !== undefined && value !== null) {
+		// Only undefined is skipped. null is a value: it writes NULL.
+		if (allowedColumns.includes(column as keyof T) && value !== undefined) {
 			columnsNamesForInsert.push(column);
 			columnValuesForInsert.push(value);
 			if (!primaryKeyColumns.includes(column as keyof T)) {
@@ -74,7 +76,8 @@ export function extractUpdateParts<T extends Record<string, ColumnDefinition>>(
 	const columnValuesForUpdate: any[] = [];
 
 	Object.entries(dataToBeUpdated).forEach(([column, value]) => {
-		if (allowedColumns.includes(column as keyof T) && value !== undefined && value !== null) {
+		// Only undefined is skipped. null is a value: it writes NULL.
+		if (allowedColumns.includes(column as keyof T) && value !== undefined) {
 			columnsNamesForUpdate.push(column);
 			columnValuesForUpdate.push(value);
 		}
@@ -127,24 +130,34 @@ interface TransactionResult<T> {
 	add(query: QueryObject): TransactionResult<T>;
 }
 
+/** Which columns a call may use. '*' means every column of the schema, and has to be written out. */
+type AllowedColumns<T> = (keyof T)[] | '*';
+
 interface BaseOptions<T extends Record<string, ColumnDefinition>> {
-	allowedColumns?: (keyof T)[] | '*';
+	allowedColumns: AllowedColumns<T>;
 	predefinedSQL?: {
 		sqlText: string;
 		values?: any[];
 	};
 }
 
+/** update takes no predefinedSQL: PostgreSQL rejects two commands in one prepared statement. */
+type UpdateBaseOptions<T extends Record<string, ColumnDefinition>> = Omit<BaseOptions<T>, 'predefinedSQL'>;
+
+/** true targets the primary key. {target} names the columns of another unique constraint. */
+type OnConflict<T> = boolean | {target: (keyof T)[]};
+
 interface InsertOptions<T extends Record<string, ColumnDefinition>> {
 	data: Partial<SchemaToData<T>>;
 	returnField?: keyof T | (keyof T)[] | '*';
-	onConflict?: boolean;
+	onConflict?: OnConflict<T>;
 	idUser?: string;
 }
 
 interface SelectOptions<T extends Record<string, ColumnDefinition>> {
 	where?: QueryParams<T>;
-	alias?: string;
+	/** Drop where keys whose column is not in allowedColumns, where the default is to throw. */
+	ignoreUnknownKeys?: boolean;
 	includeMetadata?: boolean;
 	schemaColumns?: any;
 	columnsToReturn?: (keyof T)[] | '*';
@@ -160,7 +173,7 @@ interface UpdateOptions<T extends Record<string, ColumnDefinition>> {
 
 // Custom interfaces for predefined SQL with custom schema types
 interface CustomBaseOptions<T extends Record<string, any>> {
-	allowedColumns?: (keyof T)[] | '*';
+	allowedColumns: AllowedColumns<T>;
 	predefinedSQL: {
 		sqlText: string;
 		values?: any[];
@@ -169,16 +182,21 @@ interface CustomBaseOptions<T extends Record<string, any>> {
 
 interface CustomSelectOptions<T extends Record<string, any>> {
 	where?: QueryParams<T>;
-	alias?: string;
+	/** Drop where keys whose column is not in allowedColumns, where the default is to throw. */
+	ignoreUnknownKeys?: boolean;
 	includeMetadata?: boolean;
 	schemaColumns?: any;
+	columnsToReturn?: (keyof T)[] | '*';
 }
 
 // Export the new interfaces
 export type {
 	QueryResult,
 	TransactionResult,
+	AllowedColumns,
+	OnConflict,
 	BaseOptions,
+	UpdateBaseOptions,
 	InsertOptions,
 	SelectOptions,
 	UpdateOptions,

@@ -1,4 +1,5 @@
 import {setupTests, dbpg, usersTable} from '../pg-lightquery/test-setup';
+import {QueryInputError} from '../../../src/utils/query-input-error';
 
 describe('Security - SQL Injection Prevention', () => {
 	setupTests();
@@ -79,10 +80,10 @@ describe('Security - SQL Injection Prevention', () => {
 			where: {'id.in': maliciousIds},
 		});
 
-		// Verify parameterized query with multiple placeholders
-		expect(selectResult.query.sqlText).toMatch(/IN \(\$\d+, \$\d+, \$\d+\)/);
+		// Verify parameterized query: the whole list is one bound array parameter
+		expect(selectResult.query.sqlText).toMatch(/WHERE "id" = ANY\(\$1\)$/);
 		expect(selectResult.query.sqlText).not.toContain('DROP TABLE');
-		expect(selectResult.query.values).toEqual(maliciousIds);
+		expect(selectResult.query.values).toEqual([maliciousIds]);
 
 		const result = await selectResult.execute();
 		expect(result).toEqual(expectedResult);
@@ -171,9 +172,16 @@ describe('Security - SQL Injection Prevention', () => {
 		describe('WHERE column names under the "*" wildcard', () => {
 			const injectedKey = 'id" = $1 OR true OR "id';
 
-			it('ignores a column name outside the table schema in select', () => {
-				// select() expands '*' to the table schema before validation, so the key is dropped.
-				const select = usersTable.selectUsers('*', {where: {[injectedKey]: 1} as any});
+			it('rejects a column name outside the table schema in select', () => {
+				// select() expands '*' to the table schema before validation, so the key is unknown.
+				expect(() => usersTable.selectUsers('*', {where: {[injectedKey]: 1} as any})).toThrow(QueryInputError);
+				expect(() => usersTable.selectUsers('*', {where: {[injectedKey]: 1} as any})).toThrow(
+					/Unknown column in query parameters/
+				);
+			});
+
+			it('drops a column name outside the table schema in select with ignoreUnknownKeys', () => {
+				const select = usersTable.selectUsers('*', {where: {[injectedKey]: 1} as any, ignoreUnknownKeys: true});
 				expect(select.query.sqlText).not.toContain('OR true');
 				expect(select.query.sqlText).not.toContain('WHERE');
 				expect(select.query.values).toEqual([]);
@@ -187,12 +195,13 @@ describe('Security - SQL Injection Prevention', () => {
 
 			it('rejects a WHERE column outside the table schema in update, regardless of allowedColumns', () => {
 				for (const where of [{[injectedKey]: 1}, {password: 'x'}]) {
-					expect(() =>
+					const update = () =>
 						usersTable.updateUser(['name'], {
 							data: {name: 'Jane'},
 							where: where as any,
-						})
-					).toThrow(/Failed to generate WHERE clause|Invalid column name/);
+						});
+					expect(update).toThrow(QueryInputError);
+					expect(update).toThrow(/Unknown column in query parameters/);
 				}
 			});
 

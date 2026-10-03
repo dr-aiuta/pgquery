@@ -46,14 +46,14 @@ class UsersTable extends TableBase<UsersSchema> {
 		allowedColumns: (keyof UsersSchema)[] | '*',
 		options?: {
 			where?: QueryParams<UsersSchema>;
-			alias?: string;
+			ignoreUnknownKeys?: boolean;
 		}
 	): QueryResult<Partial<UsersData>[]> {
 		return this.select<UsersData>({
 			allowedColumns,
 			options: {
 				where: options?.where,
-				alias: options?.alias,
+				ignoreUnknownKeys: options?.ignoreUnknownKeys,
 			},
 		});
 	}

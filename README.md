@@ -26,7 +26,7 @@ A modern, type-safe PostgreSQL query builder for Node.js with TypeScript support
 - **Transaction Builder**: Fluent interface for multi-query transactions
 - **Chained Insert/Update Builder**: Type-safe CTE operations for complex multi-table operations
 - **Optional Audit Fields**: Automatic `lastChangedBy` tracking with configurable defaults
-- **Minimal Dependencies**: Only 4 core dependencies
+- **Minimal Dependencies**: Only 2 dependencies, `pg` and `uuid`
 
 ## Installation
 
@@ -39,6 +39,7 @@ npm install pg-lightquery
 Feature pages:
 
 - [Filters, sorting and paging](docs/features/filters.md)
+- [Writes: insert, upsert and update](docs/features/writes.md)
 - [Transactions and chains](docs/features/transactions-and-chains.md)
 - [Connection](docs/features/connection.md)
 - [Schema: column types, drift check and migration drafts](docs/features/schema.md)
@@ -49,13 +50,14 @@ Upgrade guides:
 | ---------- | -------- | ---------------------------------------------------- |
 | 0.4.x      | 0.4.7    | [docs/upgrading/to-0.4.7.md](docs/upgrading/to-0.4.7.md) |
 | 0.4.x      | 0.5.0    | [docs/upgrading/to-0.5.0.md](docs/upgrading/to-0.5.0.md) |
+| 0.0.x      | 0.5.0    | [docs/upgrading/from-0.0.x.md](docs/upgrading/from-0.0.x.md) |
 
 ## Quick Start
 
 ### 1. Setup Connection
 
 ```typescript
-import PostgresConnection from 'pg-lightquery';
+import {PostgresConnection} from 'pg-lightquery';
 
 PostgresConnection.initialize({
 	host: 'localhost',
@@ -151,17 +153,23 @@ class EnhancedUsersTable extends EnhancedTableBase<UsersSchema> {
 		const addressData = {street: '123 Default St', city: 'Default City'};
 
 		return this.createChainedInsert()
-			.insert('new_user', this.db, userData, {returnField: '*'})
-			.insertWithReferenceIf(includePost, 'user_post', this.getRelatedTable('posts'), postData, {
-				from: 'new_user',
-				field: 'id',
-				to: 'userId',
-			})
-			.insertWithReferenceIf(includeAddress, 'user_address', this.getRelatedTable('addresses'), addressData, {
-				from: 'new_user',
-				field: 'id',
-				to: 'userId',
-			})
+			.insert('new_user', this.db, userData, {allowedColumns: ['name', 'email'], returnField: '*'})
+			.insertWithReferenceIf(
+				includePost,
+				'user_post',
+				this.getRelatedTable('posts'),
+				postData,
+				{from: 'new_user', field: 'id', to: 'userId'},
+				{allowedColumns: ['title', 'content']}
+			)
+			.insertWithReferenceIf(
+				includeAddress,
+				'user_address',
+				this.getRelatedTable('addresses'),
+				addressData,
+				{from: 'new_user', field: 'id', to: 'userId'},
+				{allowedColumns: ['street', 'city']}
+			)
 			.selectFrom('new_user')
 			.build();
 	}
@@ -225,43 +233,43 @@ import {createChainedInsert} from 'pg-lightquery';
 
 // Simple chained insert
 const result = createChainedInsert()
-	.insert('new_user', usersDb, userData, {returnField: '*'})
+	.insert('new_user', usersDb, userData, {allowedColumns: '*', returnField: '*'})
 	.insertWithReference('user_post', postsDb, postData, {
 		from: 'new_user',
 		field: 'id',
 		to: 'userId',
-	})
+	}, {allowedColumns: '*'})
 	.selectFrom('new_user')
 	.build();
 
 // Conditional inserts
 const result = createChainedInsert()
-	.insert('new_user', usersDb, userData, {returnField: '*'})
+	.insert('new_user', usersDb, userData, {allowedColumns: '*', returnField: '*'})
 	.insertWithReferenceIf(hasAddress, 'user_address', addressesDb, addressData, {
 		from: 'new_user',
 		field: 'id',
 		to: 'userId',
-	})
+	}, {allowedColumns: '*'})
 	.selectFrom('new_user')
 	.build();
 
 // UPDATE operations in transactions
 const updateResult = createChainedInsert()
-	.update('updated_user', usersDb, {name: 'Updated Name'}, {id: userId}, {returnField: '*'})
-	.update('updated_post', postsDb, {title: 'Updated Title'}, {id: postId}, {returnField: '*'})
+	.update('updated_user', usersDb, {name: 'Updated Name'}, {id: userId}, {allowedColumns: '*', returnField: '*'})
+	.update('updated_post', postsDb, {title: 'Updated Title'}, {id: postId}, {allowedColumns: '*', returnField: '*'})
 	.selectFrom('updated_user')
 	.build();
 
 // Mixed INSERT and UPDATE operations
 const mixedResult = createChainedInsert()
-	.insert('new_user', usersDb, newUserData, {returnField: '*'})
+	.insert('new_user', usersDb, newUserData, {allowedColumns: '*', returnField: '*'})
 	.updateWithReference(
 		'updated_post',
 		postsDb,
 		{content: 'Post updated by new user'},
 		{id: existingPostId},
 		{from: 'new_user', field: 'id', to: 'userId'},
-		{returnField: '*'}
+		{allowedColumns: '*', returnField: '*'}
 	)
 	.selectFrom('new_user')
 	.build();
@@ -275,14 +283,14 @@ const result = await mixedResult.execute();
 ```typescript
 // Update multiple related tables in a transaction
 const result = createChainedInsert()
-	.update('charge_update', chargesDb, {status: 'COMPLETED', amount: 1500}, {idCharge: chargeId}, {returnField: '*'})
-	.updateTable('deal_update', 'dealsTable', {status: 'COMPLETED'}, {idDeal: dealId}, {returnField: '*'})
+	.update('charge_update', chargesDb, {status: 'COMPLETED', amount: 1500}, {idCharge: chargeId}, {allowedColumns: '*', returnField: '*'})
+	.updateTable('deal_update', 'dealsTable', {status: 'COMPLETED'}, {idDeal: dealId}, {allowedColumns: '*', returnField: '*'})
 	.updateTable(
 		'expense_update',
 		'otherExpensesTable',
 		{status: 'COMPLETED'},
 		{idExpense: expenseId},
-		{returnField: '*'}
+		{allowedColumns: '*', returnField: '*'}
 	)
 	.selectFrom('charge_update')
 	.build();
@@ -292,22 +300,22 @@ const shouldUpdateDeal = dealStatus === 'PENDING';
 const shouldUpdateExpense = expenseAmount > 0;
 
 const conditionalResult = createChainedInsert()
-	.insert('new_charge', chargesDb, chargeData, {returnField: '*'})
-	.updateIf(shouldUpdateDeal, 'deal_update', dealsDb, {status: 'ACTIVE'}, {idDeal: dealId})
-	.updateIf(shouldUpdateExpense, 'expense_update', expensesDb, {amount: newAmount}, {idExpense: expenseId})
+	.insert('new_charge', chargesDb, chargeData, {allowedColumns: '*', returnField: '*'})
+	.updateIf(shouldUpdateDeal, 'deal_update', dealsDb, {status: 'ACTIVE'}, {idDeal: dealId}, {allowedColumns: '*'})
+	.updateIf(shouldUpdateExpense, 'expense_update', expensesDb, {amount: newAmount}, {idExpense: expenseId}, {allowedColumns: '*'})
 	.selectFrom('new_charge')
 	.build();
 
 // Update with references from previous operations
 const referenceResult = createChainedInsert()
-	.insert('new_entity', entitiesDb, entityData, {returnField: '*'})
+	.insert('new_entity', entitiesDb, entityData, {allowedColumns: '*', returnField: '*'})
 	.updateWithReference(
 		'linked_record',
 		recordsDb,
 		{lastModifiedBy: 'system'},
 		{id: recordId},
 		{from: 'new_entity', field: 'id', to: 'entityId'},
-		{returnField: '*'}
+		{allowedColumns: '*', returnField: '*'}
 	)
 	.selectFrom('new_entity')
 	.build();
@@ -341,7 +349,7 @@ class PlacesTable extends EnhancedTableBase<PlacesSchema> {
 
 	insertPlaceWithRelations(data: PlacesData, idContact: number, isBilling = false) {
 		return this.createChainedInsert()
-			.insert('place', this.db, data)
+			.insert('place', this.db, data, {allowedColumns: '*'})
 			.insertWithReference(
 				'place_contact',
 				'places_contacts',
@@ -350,7 +358,8 @@ class PlacesTable extends EnhancedTableBase<PlacesSchema> {
 					from: 'place',
 					field: 'idPlace',
 					to: 'idPlace',
-				}
+				},
+				{allowedColumns: '*'}
 			)
 			.insertWithReferenceIf(
 				isBilling,
@@ -361,7 +370,8 @@ class PlacesTable extends EnhancedTableBase<PlacesSchema> {
 					from: 'place_contact',
 					field: 'idPlaceContact',
 					to: 'idPlaceContact',
-				}
+				},
+				{allowedColumns: '*'}
 			)
 			.selectFrom('place')
 			.build();
@@ -370,14 +380,14 @@ class PlacesTable extends EnhancedTableBase<PlacesSchema> {
 	// Update operations with registered tables
 	updatePlaceAndContacts(placeId: number, placeData: Partial<PlacesData>, contactData?: any) {
 		return this.createChainedInsert()
-			.update('updated_place', this.db, placeData, {idPlace: placeId}, {returnField: '*'})
+			.update('updated_place', this.db, placeData, {idPlace: placeId}, {allowedColumns: '*', returnField: '*'})
 			.updateTableIf(
 				!!contactData,
 				'updated_contact',
 				'places_contacts',
 				contactData || {},
 				{idPlace: placeId},
-				{returnField: '*'}
+				{allowedColumns: '*', returnField: '*'}
 			)
 			.selectFrom('updated_place')
 			.build();
@@ -387,60 +397,30 @@ class PlacesTable extends EnhancedTableBase<PlacesSchema> {
 
 ### 🎨 Smart Query Operators
 
-Built-in support for common SQL patterns:
+A `where` key is a column name, or a column name with one operator: `.like`, `.in`, `.not`, `.null`, `.startDate`, `.endDate` and `.orderBy`. `limit` and `offset` page the result.
 
 ```typescript
-// Pattern matching
-await users.selectUsers({'name.like': 'John%'}).execute();
-
-// Multiple values
-await users.selectUsers({'id.in': [1, 2, 3]}).execute();
-
-// Date ranges
-await users
-	.selectUsers({
-		'createdAt.startDate': '2023-01-01',
-		'createdAt.endDate': '2023-12-31',
-	})
-	.execute();
-
-// JSON fields
-await users.selectUsers({'settings.theme': 'dark'}).execute();
-
-// NOT conditions
-await users.selectUsers({'email.not': null}).execute();
-
-// Sorting by more than one column. Sort keys keep the order of the object's keys.
-await users.selectUsers({'name.orderBy': 'ASC', 'id.orderBy': 'DESC'}).execute();
-
-// Paging with limit and offset
-await users.selectUsers({'id.orderBy': 'ASC', limit: 10, offset: 20}).execute();
+await users.selectUsers({'name.like': 'John%', 'id.in': [1, 2, 3], 'id.orderBy': 'DESC', limit: 10}).execute();
 ```
 
-Sorting and paging are described in [Filters, sorting and paging](docs/features/filters.md).
+An unknown key or operator throws. The operator table, sorting and paging are described in [Filters, sorting and paging](docs/features/filters.md).
 
 ### 🔐 Security & Projection Control
 
-Separate concerns for security (what can be filtered) and projection (what gets returned):
+`allowedColumns` decides which columns a caller may filter on or write. It has no default: every call names its columns, or writes `'*'` out. `columnsToReturn` decides which columns come back.
 
 ```typescript
-// Public API: Limited filtering, safe data return
-const publicUsers = users.select({
-	allowedColumns: ['id', 'name'], // Can only filter by these
+// inside a table class
+this.select({
+	allowedColumns: ['id', 'name'], // can only filter by these
 	options: {
 		where: {name: 'John'},
-		columnsToReturn: ['id', 'name', 'email'], // But can return these
-	},
-});
-
-// Admin API: Full access
-const adminUsers = users.select({
-	allowedColumns: '*', // Can filter by anything
-	options: {
-		columnsToReturn: '*', // Can return everything
+		columnsToReturn: ['id', 'name', 'email'], // but can return these
 	},
 });
 ```
+
+Routes that pass request input are covered in [Filters: passing request input safely](docs/features/filters.md#passing-request-input-safely).
 
 ### 🔄 Transaction Builder
 
@@ -461,81 +441,37 @@ const results = await transaction.execute();
 
 ### ✏️ Safe Update Operations
 
-Built-in safety features to prevent accidental mass updates:
+An update needs a `where` object. An empty one throws, unless `allowUpdateAll: true` is set. `allowedColumns` names the columns that may be written, and keys of `data` outside it are dropped. A `null` value writes `NULL`. `undefined` is skipped.
 
 ```typescript
-// Basic update with required WHERE clause
 const updateQuery = users.updateUser({name: 'John Updated', email: 'john.new@example.com'}, {id: 1});
 
-// Inspect before execution
 console.log(updateQuery.query.sqlText);
-// OUTPUT: UPDATE users SET "name" = $1, "email" = $2, "lastChangedBy" = $3 WHERE "id" = $4
-
-// Execute when ready
-const updatedUser = await updateQuery.execute();
-```
-
-#### 🛡️ Safety Features
-
-**Required WHERE clause** - Prevents accidental mass updates:
-
-```typescript
-// ❌ This will throw an error
-users.updateUser({name: 'New Name'}, {}); // Empty WHERE clause
-// Error: WHERE clause is required for UPDATE operations
-
-// ✅ Explicit mass update (use with caution)
-users.updateUser({lastLoginAt: new Date()}, {}, {allowUpdateAll: true});
-```
-
-#### 🎯 Advanced Update Options
-
-```typescript
-// Update with smart operators in WHERE clause
-await users.updateUser({status: 'inactive'}, {'email.like': '%@oldcompany.com'}).execute();
-
-// Update with RETURNING clause
-const updatedUser = await users.updateUser({name: 'Updated Name'}, {id: 1}, {returnField: 'id'}).execute();
-
-// Track who made the change
-await users.updateUser({name: 'Admin Updated'}, {id: 1}, {idUser: 'admin-123'}).execute();
-```
-
-#### 🔍 Update Query Inspection
-
-```typescript
-const updateQuery = users.updateUser({name: 'John', email: 'john@new.com'}, {id: 1});
-
-// Full query inspection
-console.log('SQL:', updateQuery.query.sqlText);
-console.log('Parameters:', updateQuery.query.values);
-console.log('Parameter count:', updateQuery.query.values.length);
-
-// Generated SQL:
 // UPDATE users
 // SET "name" = $1, "email" = $2, "lastChangedBy" = $3
 // WHERE "id" = $4
-//
-// Parameters: ['John', 'john@new.com', 'SERVER', 1]
+// RETURNING "id";
 ```
+
+Upserts, `returnField` and the `null` rule are described in [Writes: insert, upsert and update](docs/features/writes.md).
 
 ### 📊 Optional Audit Fields
 
-Automatic `lastChangedBy` tracking with configurable defaults:
+A table whose definition has a column named `lastChangedBy` gets it written on every insert and every update. The value is the `idUser` option, and `'SERVER'` when `idUser` is left out. A table without that column is not affected.
 
 ```typescript
-// Automatic audit field addition (when present in schema)
-const insertQuery = users.insertUser({name: 'John', email: 'john@example.com'});
-// Automatically includes lastChangedBy: 'SERVER' if field exists in schema
-
-// Custom audit tracking
-const insertQuery = users.insertUser({name: 'John', email: 'john@example.com'}, {idUser: 'admin-123'});
-// Uses custom idUser value for lastChangedBy
-
-// Update with audit tracking
-const updateQuery = users.updateUser({name: 'Updated'}, {id: 1}, {idUser: 'user-456'});
-// Tracks who made the change
+// inside a table class
+this.update({
+	allowedColumns: ['name'],
+	options: {data: {name: 'Updated'}, where: {id: 1}, idUser: 'user-456'},
+});
+// UPDATE users
+// SET "name" = $1, "lastChangedBy" = $2
+// WHERE "id" = $3;
+// values: ['Updated', 'user-456', 1]
 ```
+
+The details are in [Writes: the lastChangedBy convention](docs/features/writes.md#the-lastchangedby-convention).
 
 ### 🎯 Complex Joins with Type Safety
 
@@ -565,7 +501,6 @@ class UsersTable extends TableBase<UsersSchema> {
 			FROM users u
 			LEFT JOIN posts p ON u.id = p.user_id
 			GROUP BY u.id, u.name, u.email
-			WHERE 1=1
 		`;
 
 		return this.selectWithCustomSchema<UserWithPosts, typeof userWithPostsSchema>({
@@ -576,10 +511,11 @@ class UsersTable extends TableBase<UsersSchema> {
 	}
 }
 
+// The predefined SQL is wrapped as a subquery, so a filter names a column of its result.
 // Now you can filter by joined columns!
 const activeUsers = await users
 	.selectUsersWithPosts({
-		'posts.not': null, // Filter by posts (doesn't exist in users table)
+		'posts.null': false, // Filter by posts (doesn't exist in users table)
 		'name.like': 'John%', // Combined with regular columns
 	})
 	.execute();
@@ -608,12 +544,12 @@ describe('User Operations', () => {
 
 	it('handles chained inserts correctly', async () => {
 		const chainedInsert = createChainedInsert()
-			.insert('new_user', usersDb, userData, {returnField: '*'})
+			.insert('new_user', usersDb, userData, {allowedColumns: '*', returnField: '*'})
 			.insertWithReference('user_post', postsDb, postData, {
 				from: 'new_user',
 				field: 'id',
 				to: 'userId',
-			})
+			}, {allowedColumns: '*'})
 			.selectFrom('new_user')
 			.build();
 
@@ -626,7 +562,7 @@ describe('User Operations', () => {
 
 ## Performance & Dependencies
 
-- **Minimal footprint**: Only 4 dependencies (`pg`, `mocklogs`, `sql-ddl-to-json-schema`, `uuid`)
+- **Minimal footprint**: Only 2 dependencies (`pg`, `uuid`)
 - **Parameterized queries**: Built-in SQL injection protection
 - **Efficient execution**: Deferred execution prevents unnecessary queries
 - **TypeScript optimized**: Full type inference and checking
@@ -702,8 +638,8 @@ class MyTable extends EnhancedTableBase<MySchema> {
 	// Use chained inserts with registered tables
 	complexInsertOperation() {
 		return this.createChainedInsert()
-			.insertIntoTable('main', 'main_table', data)
-			.insertIntoTableWithReference('related', 'related_table', relatedData, reference)
+			.insertIntoTable('main', 'main_table', data, {allowedColumns: '*'})
+			.insertIntoTableWithReference('related', 'related_table', relatedData, reference, {allowedColumns: '*'})
 			.selectFrom('main')
 			.build();
 	}
@@ -711,9 +647,9 @@ class MyTable extends EnhancedTableBase<MySchema> {
 	// Use chained updates with registered tables
 	complexUpdateOperation() {
 		return this.createChainedInsert()
-			.updateTable('main_update', 'main_table', data, where)
-			.updateTableWithReference('related_update', 'related_table', relatedData, where, reference)
-			.updateTableIf(condition, 'conditional_update', 'other_table', data, where)
+			.updateTable('main_update', 'main_table', data, where, {allowedColumns: '*'})
+			.updateTableWithReference('related_update', 'related_table', relatedData, where, reference, {allowedColumns: '*'})
+			.updateTableIf(condition, 'conditional_update', 'other_table', data, where, {allowedColumns: '*'})
 			.selectFrom('main_update')
 			.build();
 	}
@@ -723,19 +659,23 @@ class MyTable extends EnhancedTableBase<MySchema> {
 ### Query Operators
 
 ```typescript
-// Available operators for WHERE conditions
+// Available keys for WHERE conditions
 type QueryOperators = {
 	'field.like': string; // LIKE pattern matching
-	'field.in': any[]; // IN clause
+	'field.in': any[] | string; // = ANY(array). A comma-separated string is split.
 	'field.not': any; // NOT EQUAL
 	'field.startDate': string; // Date >= value
 	'field.endDate': string; // Date <= value
 	'field.orderBy': 'ASC' | 'DESC'; // ORDER BY
-	'field.null': boolean; // IS NULL / IS NOT NULL
-	// JSON field access
-	'jsonField.property': any; // JSON -> 'property' = value
+	'field.null': boolean; // true: IS NULL, false: IS NOT NULL
+	limit: number; // LIMIT
+	offset: number; // OFFSET
+	// A JSON column takes an object. Each key becomes "jsonField" ->> 'key' = value.
+	jsonField: {[key: string]: any};
 };
 ```
+
+Any other operator throws `QueryInputError`. See [Filters, sorting and paging](docs/features/filters.md).
 
 ### Audit Field Configuration
 
@@ -749,11 +689,11 @@ const schema = {
 	},
 };
 
-// Automatic addition with default value
-const insertQuery = table.insert(data); // Uses 'SERVER' as default
+// Written with the default value 'SERVER'
+this.insert({allowedColumns: ['name'], options: {data}});
 
-// Custom audit tracking
-const insertQuery = table.insert(data, {idUser: 'custom-user-id'});
+// Written with a custom value
+this.insert({allowedColumns: ['name'], options: {data, idUser: 'custom-user-id'}});
 ```
 
 ## Contributing

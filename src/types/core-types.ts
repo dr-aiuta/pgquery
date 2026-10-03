@@ -68,7 +68,7 @@ export type Mutable<T> = {
 	-readonly [P in keyof T]: T[P];
 };
 
-export type ConditionSuffixes = 'not' | 'startDate' | 'endDate' | 'like' | 'in' | 'orderBy';
+export type ConditionSuffixes = 'not' | 'startDate' | 'endDate' | 'like' | 'in' | 'orderBy' | 'null';
 
 export type QueryConditionKeys<T extends Record<string, ColumnDefinition>> =
 	| Extract<keyof SchemaToData<T>, string>
@@ -85,6 +85,8 @@ export interface ColumnsDefinition {
 
 export interface TableDefinition<T> {
 	tableName: string;
+	// The highest `limit` a select on this table accepts. A higher limit throws. Without it there is no ceiling.
+	maxLimit?: number;
 	schema: {
 		columns: {
 			[K in keyof T]: ColumnDefinition;

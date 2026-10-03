@@ -9,13 +9,10 @@ import {
 	countIdleInTransaction,
 	fixtureTablesDdl,
 	livePoolConfig,
-	silenceLibraryLogs,
 	LiveSchema,
 } from './live-setup';
 
 describeLive('live: transactions and the connection', () => {
-	silenceLibraryLogs();
-
 	let schema: LiveSchema;
 	const usersTable = new UsersTable();
 	const postsTable = new PostsTable();

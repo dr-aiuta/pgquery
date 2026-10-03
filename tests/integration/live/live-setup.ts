@@ -1,6 +1,6 @@
 import {randomBytes} from 'crypto';
 import {Client, PoolConfig} from 'pg';
-import PostgresConnection from '../../../src/connection/postgres-connection';
+import PostgresConnection, {ConnectionOptions} from '../../../src/connection/postgres-connection';
 import {ColumnDefinition, TableDefinition} from '../../../src/types/core-types';
 
 /**
@@ -105,11 +105,32 @@ export const userSettingsDdl = `CREATE TABLE user_settings (
 	settings JSONB
 )`;
 
+// A table with an enum column, for filters on enum values.
+export type TicketsSchema = {[K in 'id' | 'status' | 'title']: ColumnDefinition};
+export const ticketsTable: TableDefinition<TicketsSchema> = {
+	tableName: 'tickets',
+	schema: {
+		columns: {
+			id: {type: 'INTEGER', primaryKey: true, autoIncrement: true},
+			status: {type: 'ENUM', enum: ['open', 'closed', 'archived'], enumTypeName: 'ticket_status', notNull: true},
+			title: {type: 'TEXT'},
+		},
+	},
+};
+export const ticketsDdl = [
+	`CREATE TYPE ticket_status AS ENUM ('open', 'closed', 'archived')`,
+	`CREATE TABLE tickets (
+		id SERIAL PRIMARY KEY,
+		status ticket_status NOT NULL,
+		title TEXT
+	)`,
+];
+
 /**
  * Creates a schema with a random name, runs the DDL inside it and initializes the
  * library's pool with that schema as its search_path.
  */
-export async function createLiveSchema(ddl: string[]): Promise<LiveSchema> {
+export async function createLiveSchema(ddl: string[], options?: ConnectionOptions): Promise<LiveSchema> {
 	const name = `plq_live_${randomBytes(6).toString('hex')}`;
 	const admin = new Client({connectionString: liveDatabaseUrl});
 	await admin.connect();
@@ -119,7 +140,7 @@ export async function createLiveSchema(ddl: string[]): Promise<LiveSchema> {
 		await admin.query(statement);
 	}
 
-	PostgresConnection.initialize(livePoolConfig(name));
+	PostgresConnection.initialize(livePoolConfig(name), options);
 
 	return {name, admin};
 }
@@ -154,15 +175,4 @@ export async function countIdleInTransaction(schema: LiveSchema): Promise<number
 		[schema.name]
 	);
 	return result.rows[0].count;
-}
-
-/** The library logs every query in this version. The live suites silence that output. */
-export function silenceLibraryLogs(): void {
-	beforeAll(() => {
-		jest.spyOn(console, 'log').mockImplementation(() => undefined);
-		jest.spyOn(console, 'error').mockImplementation(() => undefined);
-	});
-	afterAll(() => {
-		jest.restoreAllMocks();
-	});
 }

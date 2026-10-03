@@ -1,5 +1,6 @@
 import {ColumnDefinition} from '../types/core-types';
 import {UniqueArray} from '../types/utility-types';
+import {QueryInputError} from './query-input-error';
 
 // Function to construct a SQL condition based on key, index, alias, and rangeField
 const constructCondition = (key: string, idx: number, alias: string, rangeField?: string): string => {
@@ -63,7 +64,7 @@ export function returningClause(returnField: unknown, columns: Record<string, un
 
 	fields.forEach((field) => {
 		if (typeof field !== 'string' || !Object.prototype.hasOwnProperty.call(columns, field)) {
-			throw new Error(
+			throw new QueryInputError(
 				`Invalid returnField: ${String(field)}. Expected '*' or a column of the table definition.`
 			);
 		}
@@ -79,7 +80,8 @@ export function returningClause(returnField: unknown, columns: Record<string, un
  * @param columnsForInsert - Array of column names to be inserted.
  * @param valuesForInsert - Array of values corresponding to the columns to be inserted.
  * @param onConflict - A flag indicating whether to include an ON CONFLICT clause.
- * @param primaryKeyColumns - The primary key column(s) used for the ON CONFLICT clause.
+ * @param primaryKeyColumns - The conflict target of the ON CONFLICT clause: the primary key column(s),
+ *   or the columns of the unique constraint the caller named.
  * @param conflictUpdateAssignments - The SQL assignments for updating columns on conflict.
  * @param returnField - The field(s) to be returned after the insert operation.
  * @param schemaColumns - The columns of the table definition, used to validate returnField.

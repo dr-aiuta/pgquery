@@ -29,11 +29,34 @@ New column types, each with its TypeScript type:
 
 `BIGINT` is `string | number`, because node-postgres returns it as a string. `JSON` and `JSONB` are `unknown` and need a cast when read.
 
-Breaking changes:
+Query features:
 
-- TypeScript types only: the column types above used to accept any value. A value of another type, or `null`, no longer compiles for those columns.
-- The package has an `exports` map. Only `pg-lightquery` and `pg-lightquery/schema` can be imported. An import of any other path inside the package, such as `pg-lightquery/dist/...`, fails.
-- A string `default` in a table definition is a literal. Wrap an expression in `sqlExpression(...)`. Exactly `now()`, `CURRENT_TIMESTAMP`, `CURRENT_DATE` and `gen_random_uuid()`, in any case, are still read as expressions. No query reads `default`, so this affects only the schema tools.
+- `ignoreUnknownKeys` in the select options drops `where` keys outside `allowedColumns`. See [docs/features/filters.md](docs/features/filters.md).
+- `maxLimit` in a table definition caps `limit`.
+- `columnsToReturn` works with predefined SQL.
+- `onConflict: {target: [...]}` upserts on a unique column that is not the primary key. See [docs/features/writes.md](docs/features/writes.md).
+- `QueryInputError` is thrown for every rejected input. Errors from PostgreSQL still pass through unchanged. See [docs/features/connection.md](docs/features/connection.md).
+- `PostgresConnection.initialize(config, {logger, slowQueryMs})` attaches a logger. It receives the SQL text, the duration and the row count, and never a bound value.
+
+Breaking changes. Each has a migration note, and a step in the upgrade guide:
+
+- `allowedColumns` has no default in `select`, `selectWithCustomSchema`, `insert`, `update` and every step of a chained insert. Migration: pass a column list, or write `'*'` out. Guide step 1.
+- A `where` key whose column is not in `allowedColumns` throws. It used to be dropped. Migration: pass an explicit list, and set `ignoreUnknownKeys: true` on routes that should ignore extra parameters. Guide step 2.
+- `null` in insert and update data writes `NULL`. Only `undefined` is skipped. Migration: where `null` means "keep what is stored", remove the null keys before the call. Guide step 3.
+- `'<column>.null': true` means `IS NULL`. Boolean `true` used to mean `IS NOT NULL`. Migration: pass `false` for `IS NOT NULL`. Guide step 4.
+- An operator outside `not`, `like`, `in`, `null`, `startDate`, `endDate` and `orderBy` throws. It used to fall back to equality. Migration: fix the key. A JSON key filter is an object value. Guide step 4.
+- The default export, `QueryBuilder`, `pgUtilsDb`, `pgUtilsHelpers`, `CTETransactionBuilder`, `createCTETransaction`, `EnhancedCTEBuilder`, `createEnhancedCTE` and their types are no longer exported. Migration: import `{TableBase}` by name, and use `createChainedInsert` for chains. Guide step 5.
+- `update` no longer takes `predefinedSQL`. Migration: run the update on its own, or send the whole statement through `PostgresConnection.query`. Guide step 6.
+- Predefined SQL is wrapped as a subquery when a filter, a sort key, a paging key or a column list is added. Filters apply to the columns of its result. The `alias` option is removed. Migration: remove `alias`, and filter on result column names. Guide step 7.
+- `<column>.in` sends one array parameter, `= ANY($n)`. An empty list returns no rows. More than 10,000 values throw. Migration: code that reads `.query.values` finds one array. Guide step 8.
+- The library no longer prints to the console. Migration: pass a logger to `initialize`. Guide step 9.
+- TypeScript types only: the column types above used to accept any value. A value of another type, or `null`, no longer compiles for those columns. Migration: fix the value's type, or remove the cast. Guide step 10.
+- The package has an `exports` map. Only `pg-lightquery` and `pg-lightquery/schema` can be imported. An import of any other path inside the package, such as `pg-lightquery/dist/...`, fails. Migration: import from one of the two entry points. Guide step 11.
+- A string `default` in a table definition is a literal. Exactly `now()`, `CURRENT_TIMESTAMP`, `CURRENT_DATE` and `gen_random_uuid()`, in any case, are still read as expressions. No query reads `default`, so this affects only the schema tools. Migration: wrap an expression in `sqlExpression(...)`. Guide step 12.
+
+Removed dependencies: `sql-ddl-to-json-schema`, `mocklogs` and `@types/json-schema`. The package now depends on `pg` and `uuid` only.
+
+Projects on 0.0.x: see [docs/upgrading/from-0.0.x.md](docs/upgrading/from-0.0.x.md).
 
 # v0.4.7
 

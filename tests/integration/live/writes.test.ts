@@ -11,7 +11,6 @@ import {
 	postTagsDdl,
 	visitsTable,
 	visitsDdl,
-	silenceLibraryLogs,
 	LiveSchema,
 } from './live-setup';
 
@@ -21,8 +20,6 @@ const usersTableDefinition: TableDefinition<UsersSchema> = {
 };
 
 describeLive('live: inserts, upserts and updates', () => {
-	silenceLibraryLogs();
-
 	let schema: LiveSchema;
 	const usersTable = new UsersTable();
 	const usersDb = new DatabaseOperations(usersTableDefinition);
