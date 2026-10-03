@@ -38,6 +38,41 @@ const buildOrderBy = (orderByValuesArray: string[], alias: string): string => {
 };
 
 /**
+ * Builds the RETURNING clause for an insert or an update.
+ *
+ * @param returnField - `'*'`, one column of the table definition, or an array of such columns.
+ * @param columns - The columns of the table definition. Their keys are the accepted names.
+ *
+ * @returns The clause, or an empty string when nothing is returned.
+ *
+ * @throws Throws when a name is not a column of the table definition. The name is written
+ * into the SQL text inside double quotes, so only known columns are accepted.
+ */
+export function returningClause(returnField: unknown, columns: Record<string, unknown>): string {
+	if (returnField === undefined || returnField === null || returnField === '') {
+		return '';
+	}
+	if (returnField === '*') {
+		return 'RETURNING *';
+	}
+
+	const fields: unknown[] = Array.isArray(returnField) ? returnField : [returnField];
+	if (fields.length === 0) {
+		return '';
+	}
+
+	fields.forEach((field) => {
+		if (typeof field !== 'string' || !Object.prototype.hasOwnProperty.call(columns, field)) {
+			throw new Error(
+				`Invalid returnField: ${String(field)}. Expected '*' or a column of the table definition.`
+			);
+		}
+	});
+
+	return `RETURNING ${fields.map((field) => `"${field}"`).join(', ')}`;
+}
+
+/**
  * Constructs an SQL INSERT query with optional conflict resolution and returning clause.
  *
  * @param tableName - The name of the table into which the data will be inserted.
@@ -47,6 +82,7 @@ const buildOrderBy = (orderByValuesArray: string[], alias: string): string => {
  * @param primaryKeyColumns - The primary key column(s) used for the ON CONFLICT clause.
  * @param conflictUpdateAssignments - The SQL assignments for updating columns on conflict.
  * @param returnField - The field(s) to be returned after the insert operation.
+ * @param schemaColumns - The columns of the table definition, used to validate returnField.
  *
  * @returns Object The constructed SQL INSERT query string and an array of values.
  */
@@ -57,36 +93,35 @@ export function buildInsertSqlQuery<T extends Record<string, ColumnDefinition>>(
 	onConflict: boolean,
 	primaryKeyColumns: UniqueArray<(keyof T)[]>,
 	conflictUpdateAssignments: string[],
-	returnField?: keyof T | (keyof T)[] | '*'
+	returnField: keyof T | (keyof T)[] | '*' | undefined,
+	schemaColumns: Record<string, unknown>
 ): {sqlText: string; values: any[]} {
 	// Interpolating the values as $1, $2, $3, etc.
 	const placeholders = valuesForInsert.map((_, index) => `$${index + 1}`).join(', ');
 
-	// Format the RETURNING clause based on the type of returnField
-	let returningClause = '';
-	if (returnField) {
-		if (String(returnField) === '*') {
-			returningClause = 'RETURNING *';
-		} else if (Array.isArray(returnField)) {
-			// Handle array of fields - only add RETURNING if array is not empty
-			if (returnField.length > 0) {
-				returningClause = `RETURNING ${returnField.map((field) => `"${String(field)}"`).join(', ')}`;
-			}
-		} else {
-			// Handle single field
-			returningClause = `RETURNING "${String(returnField)}"`;
-		}
+	const returning = returningClause(returnField, schemaColumns);
+
+	// With no column to insert, Postgres needs DEFAULT VALUES. An empty column list is a syntax error.
+	const insertPart =
+		columnsForInsert.length > 0
+			? `INSERT INTO ${tableName} ("${columnsForInsert.join('", "')}")
+VALUES (${placeholders})`
+			: `INSERT INTO ${tableName} DEFAULT VALUES`;
+
+	// Each key column is quoted on its own. With nothing to update, DO UPDATE SET would be empty.
+	let conflictPart = '';
+	if (onConflict && primaryKeyColumns.length > 0) {
+		const conflictTarget = `("${primaryKeyColumns.join('", "')}")`;
+		conflictPart =
+			conflictUpdateAssignments.length > 0
+				? ` ON CONFLICT ${conflictTarget} DO UPDATE SET ${conflictUpdateAssignments.join(', ')}`
+				: ` ON CONFLICT ${conflictTarget} DO NOTHING`;
 	}
 
 	// Building the SQL text
 	const sqlText = `
-INSERT INTO ${tableName} ("${columnsForInsert.join('", "')}")
-VALUES (${placeholders})${
-		onConflict && primaryKeyColumns.length > 0
-			? ` ON CONFLICT ("${primaryKeyColumns.join(', ')}") DO UPDATE SET ${conflictUpdateAssignments.join(', ')}`
-			: ''
-	}
-${returningClause ? returningClause : ''};
+${insertPart}${conflictPart}
+${returning};
 	`;
 
 	return {
@@ -104,6 +139,7 @@ ${returningClause ? returningClause : ''};
  * @param whereClause - The WHERE clause (without the WHERE keyword).
  * @param whereValues - Array of values for the WHERE clause parameters.
  * @param returnField - The field(s) to be returned after the update operation.
+ * @param schemaColumns - The columns of the table definition, used to validate returnField.
  *
  * @returns Object The constructed SQL UPDATE query string and an array of values.
  */
@@ -113,7 +149,8 @@ export function buildUpdateSqlQuery<T extends Record<string, ColumnDefinition>>(
 	valuesForUpdate: any[],
 	whereClause: string,
 	whereValues: any[],
-	returnField?: keyof T | (keyof T)[] | '*'
+	returnField: keyof T | (keyof T)[] | '*' | undefined,
+	schemaColumns: Record<string, unknown>
 ): {sqlText: string; values: any[]} {
 	// Create SET assignments like "column" = $1, "column2" = $2
 	const setAssignments = columnsForUpdate.map((column, index) => `"${String(column)}" = $${index + 1}`).join(', ');
@@ -124,30 +161,16 @@ export function buildUpdateSqlQuery<T extends Record<string, ColumnDefinition>>(
 		return `$${newNum}`;
 	});
 
-	// Format the RETURNING clause based on the type of returnField
-	let returningClause = '';
-	if (returnField) {
-		if (String(returnField) === '*') {
-			returningClause = 'RETURNING *';
-		} else if (Array.isArray(returnField)) {
-			// Handle array of fields - only add RETURNING if array is not empty
-			if (returnField.length > 0) {
-				returningClause = `RETURNING ${returnField.map((field) => `"${String(field)}"`).join(', ')}`;
-			}
-		} else {
-			// Handle single field
-			returningClause = `RETURNING "${String(returnField)}"`;
-		}
-	}
+	const returning = returningClause(returnField, schemaColumns);
 
 	// Building the SQL text
 	const sqlText = `
 UPDATE ${tableName}
 SET ${setAssignments}
 ${adjustedWhereClause}${
-		returningClause
+		returning
 			? `
-${returningClause}`
+${returning}`
 			: ''
 	};
 	`.trim();
@@ -164,4 +187,5 @@ ${returningClause}`
 export default {
 	buildInsertSqlQuery,
 	buildUpdateSqlQuery,
+	returningClause,
 };

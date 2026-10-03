@@ -14,13 +14,13 @@ function isFieldAllowed(field: string, allowedColumns: string[]): boolean {
 	return true;
 }
 
-// LIMIT is interpolated into the SQL text, so it must be a validated non-negative integer.
-function parseLimit(value: unknown): number {
-	const limit = typeof value === 'string' && /^\d+$/.test(value.trim()) ? Number(value) : value;
-	if (typeof limit !== 'number' || !Number.isInteger(limit) || limit < 0) {
-		throw new Error(`Invalid limit value: ${String(value)}. Expected a non-negative integer.`);
+// LIMIT and OFFSET are interpolated into the SQL text, so each must be a validated non-negative integer.
+function parsePagingValue(name: 'limit' | 'offset', value: unknown): number {
+	const parsed = typeof value === 'string' && /^\d+$/.test(value.trim()) ? Number(value) : value;
+	if (typeof parsed !== 'number' || !Number.isInteger(parsed) || parsed < 0) {
+		throw new Error(`Invalid ${name} value: ${String(value)}. Expected a non-negative integer.`);
 	}
-	return limit;
+	return parsed;
 }
 
 export function queryConstructor(
@@ -37,12 +37,15 @@ export function queryConstructor(
 	const queryValues: any[] = [];
 	const orderByParts: string[] = [];
 	let limitPart = '';
+	let offsetPart = '';
 
 	for (const [key, value] of Object.entries(params)) {
 		const [field, condition] = key.split('.');
 		if (isFieldAllowed(field, allowedColumns)) {
 			if (field === 'limit') {
-				limitPart = `LIMIT ${parseLimit(value)}`;
+				limitPart = `LIMIT ${parsePagingValue('limit', value)}`;
+			} else if (field === 'offset') {
+				offsetPart = `OFFSET ${parsePagingValue('offset', value)}`;
 			} else if (condition) {
 				switch (condition) {
 					case 'startDate':
@@ -76,8 +79,11 @@ export function queryConstructor(
 	}
 
 	const wherePart = whereConditions.length ? `WHERE ${whereConditions.join(' AND ')}` : '';
-	const orderByPart = orderByParts.join(', ');
-	const sqlQuery = `${wherePart} ${orderByPart} ${limitPart}`.trim();
+	// Sort keys keep the order of the object's keys.
+	const orderByPart = orderByParts.length ? `ORDER BY ${orderByParts.join(', ')}` : '';
+	// OFFSET follows LIMIT. The text in front of it is built as before, so existing queries keep their SQL.
+	const withoutOffset = `${wherePart} ${orderByPart} ${limitPart}`.trim();
+	const sqlQuery = offsetPart ? `${withoutOffset} ${offsetPart}`.trim() : withoutOffset;
 
 	return {
 		sqlQuery,
