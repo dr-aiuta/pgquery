@@ -73,6 +73,18 @@ describe('renderMigration', () => {
 		expect(await runUp(content)).toEqual([steps[0].sql, steps[1].sql]);
 	});
 
+	it('keeps a carriage return inside a default exactly as written', async () => {
+		const cr = String.fromCharCode(0x0d);
+		const withCr: MigrationStep = {
+			sql: `ALTER TABLE "public"."a" ALTER COLUMN "note" SET DEFAULT 'one${cr}two${cr}\nthree'`,
+			review: false,
+		};
+		const expected = [steps[0].sql, steps[1].sql, withCr.sql];
+
+		expect(await runUp(renderMigration([...steps, withCr], 'node-pg-migrate-ts'))).toEqual(expected);
+		expect(await runUp(renderMigration([...steps, withCr], 'node-pg-migrate-js'))).toEqual(expected);
+	});
+
 	it('comments out review steps with their note', () => {
 		const content = renderMigration(steps, 'node-pg-migrate-ts');
 		expect(content).toContain(

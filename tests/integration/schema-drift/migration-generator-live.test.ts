@@ -1,6 +1,6 @@
 import {Client} from 'pg';
 import {checkSchemaDrift} from '../../../src/schema/schema-drift';
-import {generateMigration} from '../../../src/schema/migration-generator';
+import {generateMigration, renderMigration} from '../../../src/schema/migration-generator';
 import {TableDefinition} from '../../../src/types';
 import {sqlExpression} from '../../../src/utils/sql-expression';
 
@@ -236,5 +236,126 @@ describeLive('generateMigration against a live database', () => {
 			'ALTER TABLE "gen_test"."codes" ALTER COLUMN "code" DROP NOT NULL',
 			'ALTER TABLE "gen_test"."codes" ADD PRIMARY KEY ("id")',
 		]);
+	});
+
+	describe('review steps stay inert', () => {
+		const LF = String.fromCharCode(0x0a);
+		const CR = String.fromCharCode(0x0d);
+		const formats = ['sql', 'node-pg-migrate-ts', 'node-pg-migrate-js'] as const;
+		const users = table('gen_test.users', {id: {type: 'INTEGER'}});
+		const usersExist = async () => {
+			const {rows} = await client.query(`SELECT to_regclass('gen_test.users')::text AS found`);
+			return rows[0].found;
+		};
+
+		beforeEach(async () => {
+			await client.query('CREATE SCHEMA gen_test');
+			await client.query('CREATE TABLE gen_test.users (id INTEGER)');
+		});
+
+		it('refuses to draft for a database column whose name holds a line break', async () => {
+			const payload = `x${LF}DROP TABLE gen_test.users; --`;
+			await client.query(`ALTER TABLE gen_test.users ADD COLUMN "${payload}" text`);
+
+			for (const format of formats) {
+				await expect(generateMigration([users], {query, format})).rejects.toThrow(
+					/^Column name "x\\nDROP TABLE gen_test.users; --" contains a line break/
+				);
+				await expect(generateMigration([users], {query, format, ignoreExtraColumns: true})).rejects.toThrow(
+					/contains a line break/
+				);
+			}
+			expect(await usersExist()).toBe('gen_test.users');
+		});
+
+		it('refuses to draft for an enum label or a constraint name that holds a line break', async () => {
+			await client.query(`CREATE TYPE gen_test.mood AS ENUM ('ok', 'x${CR}DROP TABLE gen_test.users; --')`);
+			await client.query('ALTER TABLE gen_test.users ADD COLUMN mood gen_test.mood');
+			const withMood = table('gen_test.users', {
+				id: {type: 'INTEGER'},
+				mood: {type: 'ENUM', enum: ['ok'], enumTypeName: 'gen_test.mood'},
+			});
+			for (const format of formats) {
+				await expect(generateMigration([withMood], {query, format})).rejects.toThrow(
+					/^Enum label .* contains a line break/
+				);
+			}
+
+			await client.query('ALTER TABLE gen_test.users DROP COLUMN mood');
+			await client.query(`ALTER TABLE gen_test.users ADD CONSTRAINT "x${LF}DROP TABLE gen_test.users; --" UNIQUE (id)`);
+			for (const format of formats) {
+				await expect(generateMigration([users], {query, format})).rejects.toThrow(
+					/^(Constraint|Index) name .* contains a line break/
+				);
+			}
+		});
+
+		it('changes nothing when a rendered SQL file with hostile review steps runs', async () => {
+			for (const terminator of [LF, CR, CR + LF]) {
+				const steps = [
+					{
+						sql: `ALTER TABLE gen_test.users ALTER COLUMN id SET DEFAULT '1${terminator}'; DROP TABLE gen_test.users; --'`,
+						review: true,
+						note: `Dropping x${terminator}DROP TABLE gen_test.users; -- deletes its data.`,
+					},
+				];
+
+				await client.query(renderMigration(steps, 'sql'));
+
+				expect(await usersExist()).toBe('gen_test.users');
+			}
+		});
+	});
+
+	it('adds a missing label to an existing enum type before the column that needs it', async () => {
+		await client.query('CREATE SCHEMA gen_test');
+		await client.query(`CREATE TYPE gen_test.user_status AS ENUM ('active', 'blocked')`);
+		await client.query('CREATE TABLE gen_test.users (id INTEGER PRIMARY KEY)');
+		const users = table('gen_test.users', {
+			id: {type: 'INTEGER', primaryKey: true},
+			status: {type: 'ENUM', enum: ['active', 'blocked', 'archived'], enumTypeName: 'gen_test.user_status'},
+		});
+
+		const draft = await generateMigration([users], {query});
+		expect(draft.steps).toEqual([
+			{sql: `ALTER TYPE "gen_test"."user_status" ADD VALUE IF NOT EXISTS 'archived'`, review: false},
+			{sql: 'ALTER TABLE "gen_test"."users" ADD COLUMN "status" "gen_test"."user_status"', review: false},
+		]);
+
+		for (const step of draft.steps) await client.query(step.sql);
+		expect((await checkSchemaDrift([users], {query})).issues).toEqual([]);
+	});
+
+	it('writes string defaults as literals, the compatibility list as expressions, and null as no default', async () => {
+		await client.query('CREATE SCHEMA gen_test');
+		const people = table('gen_test.people', {
+			surname: {type: 'TEXT', default: 'Smith (Jr)'},
+			owner: {type: 'TEXT', default: 'current_user'},
+			nickname: {type: 'TEXT', default: null},
+			createdAt: {type: 'TIMESTAMPTZ', notNull: true, default: 'CURRENT_TIMESTAMP'},
+			expiresAt: {type: 'TIMESTAMPTZ', default: sqlExpression("now() + interval '1 day'")},
+			opensAt: {type: 'TIME WITHOUT TIME ZONE'},
+		});
+
+		const draft = await generateMigration([people], {query});
+		expect(draft.needsReview).toBe(false);
+		for (const step of draft.steps) await client.query(step.sql);
+
+		const {rows} = await client.query(
+			`SELECT column_name, data_type, column_default FROM information_schema.columns
+			 WHERE table_schema = 'gen_test' AND table_name = 'people' ORDER BY ordinal_position`
+		);
+		expect(rows).toEqual([
+			{column_name: 'surname', data_type: 'text', column_default: `'Smith (Jr)'::text`},
+			{column_name: 'owner', data_type: 'text', column_default: `'current_user'::text`},
+			{column_name: 'nickname', data_type: 'text', column_default: null},
+			{column_name: 'createdAt', data_type: 'timestamp with time zone', column_default: 'CURRENT_TIMESTAMP'},
+			{column_name: 'expiresAt', data_type: 'timestamp with time zone', column_default: `(now() + '1 day'::interval)`},
+			{column_name: 'opensAt', data_type: 'time without time zone', column_default: null},
+		]);
+
+		// TIMESTAMPTZ, TIME WITHOUT TIME ZONE and default: null all compare clean.
+		expect((await checkSchemaDrift([people], {query})).issues).toEqual([]);
+		expect(await generateMigration([people], {query})).toMatchObject({hasChanges: false, steps: []});
 	});
 });

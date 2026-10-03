@@ -16,8 +16,10 @@ export type ColumnTypeMapping = {
 	JSONB: unknown;
 	DATE: Date | string;
 	ENUM: Enumerator | Enumerator[];
+	'TIME WITHOUT TIME ZONE': string;
 	'TIMESTAMP WITHOUT TIME ZONE': Date | string;
 	'TIMESTAMP WITH TIME ZONE': Date | string;
+	TIMESTAMPTZ: Date | string; // alias of TIMESTAMP WITH TIME ZONE
 };
 
 // Define the base types without parameters
@@ -49,7 +51,10 @@ export type ColumnDefinition<T extends BaseColumnType = any> = {
 	autoIncrement?: boolean;
 	unique?: boolean;
 	notNull?: boolean;
-	default?: any; // Default value. Use sqlExpression('now()') for an SQL expression; strings like 'NOW()' are also treated as expressions
+	// Default value. A string is a literal. Use sqlExpression('now()') for an SQL expression.
+	// For compatibility, exactly 'now()', 'CURRENT_TIMESTAMP', 'CURRENT_DATE' and 'gen_random_uuid()',
+	// in any case, are still read as expressions. null and undefined both mean no default.
+	default?: any;
 	references?: ColumnReference; // Foreign key
 };
 

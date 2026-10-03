@@ -63,9 +63,29 @@ export const SQL_DATA_TYPES: Record<BaseColumnType, string> = {
 	JSONB: 'jsonb',
 	DATE: 'date',
 	ENUM: 'USER-DEFINED',
+	'TIME WITHOUT TIME ZONE': 'time without time zone',
 	'TIMESTAMP WITHOUT TIME ZONE': 'timestamp without time zone',
 	'TIMESTAMP WITH TIME ZONE': 'timestamp with time zone',
+	TIMESTAMPTZ: 'timestamp with time zone',
 };
+
+/**
+ * The PostgreSQL data type of a column type. Throws for a type that is not supported:
+ * a silent fallback would report drift that is not there.
+ */
+export function sqlDataType(type: unknown): string {
+	if (typeof type === 'string' && Object.prototype.hasOwnProperty.call(SQL_DATA_TYPES, type)) {
+		return SQL_DATA_TYPES[type as BaseColumnType];
+	}
+	throw new Error(
+		`Unknown column type: ${JSON.stringify(type)}. Supported types: ${Object.keys(SQL_DATA_TYPES).join(', ')}.`
+	);
+}
+
+/** A definition has a default unless it is missing or null. PostgreSQL stores no default for NULL. */
+export function hasDefinedDefault(def: ColumnDefinition): boolean {
+	return def.default !== undefined && def.default !== null;
+}
 
 // pg_constraint.confdeltype / confupdtype codes
 export const FK_ACTIONS: Record<string, ForeignKeyAction> = {
@@ -178,7 +198,7 @@ function describeForeignKey(target: string, onDelete?: string, onUpdate?: string
 }
 
 function expectedType(def: ColumnDefinition): string {
-	const dataType = SQL_DATA_TYPES[def.type as BaseColumnType] ?? String(def.type);
+	const dataType = sqlDataType(def.type);
 	if (def.type === 'VARCHAR' && def.length !== undefined) return `${dataType}(${def.length})`;
 	if (def.type === 'NUMERIC' && def.precision !== undefined) return `${dataType}(${def.precision},${def.scale ?? 0})`;
 	return dataType;
@@ -389,7 +409,8 @@ export function compareWithCatalog(
 			}
 
 			// Default: presence only. Expressions are not compared because PostgreSQL rewrites them.
-			const expectDefault = def.default !== undefined;
+			// A null default and a missing default both mean no default.
+			const expectDefault = hasDefinedDefault(def);
 			const hasDefault = col.column_default !== null && col.column_default !== undefined && !isAutoIncrement;
 			if (expectDefault !== hasDefault) {
 				report(
