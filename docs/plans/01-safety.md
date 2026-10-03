@@ -121,6 +121,53 @@ Covers the tooling gaps "no test reaches Postgres" and "the pool cannot be close
 - Each file creates its own schema with a random name, runs inside it, and drops it in `afterAll`. Transaction tests need real commits, so a rollback wrapper is not enough.
 - Cases: one per fix in §1 to §4. Add a round trip of insert, select and update. Add one case per where operator: `.not`, `.like`, `.in`, `.null`, the date range pair and a JSON key.
 
+### 10. Documentation
+
+This PR creates the `docs/` folder. The structure and the page templates are in the [plans index](README.md#documentation-the-prs-create).
+
+`README.md`
+
+- Add a "Documentation" section after "Installation". It lists the feature pages and has one table for upgrades:
+
+  | You are on | You want | Read |
+  |---|---|---|
+  | 0.4.x | 0.4.7 | `docs/upgrading/to-0.4.7.md` |
+
+  Later PRs add their rows.
+- Fix the "Smart Query Operators" section so it shows `offset` and two sort keys. Link it to `docs/features/filters.md`.
+
+`docs/upgrading/to-0.4.7.md`
+
+- Who needs this: anyone on 0.4.x. A caret range such as `^0.4.5` installs it automatically. No code change is required.
+- What is new: transactions with a list of queries, `offset`, sorting by more than one column, `end()`.
+- Steps. Each one is a behavior note with a way to check for it, because nothing breaks:
+  1. Transactions are now atomic. *Find it*: search for `transaction()` and for chained `.build().execute()`. *Check it*: code that worked around partial writes can be removed.
+  2. A failed single-statement transaction now throws the original pg error. *Find it*: search for `catch` blocks that compare the error class of `PostgresConnection.transaction`. *Check it*: `error.code` is now available.
+  3. `returnField` must be a column of the table definition, or `'*'`. *Find it*: search for `returnField`. *Change it*: add a missing column to the definition. *Check it*: the call no longer throws.
+  4. An upsert that sends only key columns now does nothing on conflict, where it failed before.
+  5. `offset` now pages, where it failed before. *Find it*: search for a column named `offset`. A table with such a column can no longer filter on it through `where`.
+- After the upgrade: run the type check and the tests. To roll back, pin `0.4.6`.
+
+`docs/features/filters.md`
+
+- Sorting by several columns, with the rule that keys keep their object order.
+- `limit` and `offset`, and the integer check both share.
+- That both work in `selectWithCustomSchema` with an explicit column list.
+
+`docs/features/transactions-and-chains.md`
+
+- `transaction().add(query).execute()` and what atomic means here: one connection, one BEGIN, one COMMIT or ROLLBACK.
+- `PostgresConnection.transaction(queries)` for callers that hold query objects from several tables.
+- Errors: the original pg error is rethrown, with its `code`.
+
+`docs/features/connection.md`
+
+- `initialize`, and `end()` for tests and scripts that must exit.
+
+`CHANGELOG.md`
+
+- The 0.4.7 entry links to `docs/upgrading/to-0.4.7.md`.
+
 ## Out of scope
 
 | Item | Goes to |
@@ -135,6 +182,7 @@ Covers the tooling gaps "no test reaches Postgres" and "the pool cannot be close
 - CI is green, including the live suite.
 - `npm pack --dry-run` lists only the build, `package.json` and `README.md`.
 - `CHANGELOG.md` has a 0.4.7 entry that lists each fix.
+- The pages in §10 exist, and every link from `README.md` into `docs/` resolves.
 - The tag `v0.4.7` is pushed and the publish workflow succeeds.
 - apihigia and ocaproperties install 0.4.7 and pass their own type check. ocaproperties also passes its integration suite with `RUN_INTEGRATION=true`.
 

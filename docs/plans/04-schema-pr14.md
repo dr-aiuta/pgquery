@@ -156,11 +156,49 @@ Change. Add unit tests that feed hand-built drift issues to the step builder. Co
 - PR 1's `ci.yml` sets `PGLIGHTQUERY_TEST_DATABASE_URL`, so the PR's 9 live tests run in CI from then on.
 - The live suites already sit in `tests/integration/schema-drift/`. Leave them there. PR 3 later moves the mocked suites out of `tests/integration/`, so that folder holds only tests that reach Postgres.
 
-### 11. README
+### 11. Documentation
 
-- Change the import paths in the "Migrations & Schema Drift" section to `pg-lightquery/schema`.
-- Document the default rule from §2.
-- The section's `runner` call for node-pg-migrate was never run. Either run it once against a local database or mark it as untested.
+The PR adds a 148-line "Migrations & Schema Drift" section to the root README. Move it into `docs/`, following the structure and templates in the [plans index](README.md#documentation-the-prs-create).
+
+`docs/features/schema.md`, new
+
+- Move the README section here. The README keeps one paragraph and a link.
+- Change the import paths to `pg-lightquery/schema`.
+- Column types: a table of every type with its TypeScript type and its Postgres type, including the aliases from §6.
+- Defaults: the rule from §2, with `sqlExpression` and the compatibility list.
+- Foreign keys and `enumTypeName`.
+- `checkSchemaDrift`: what it compares, that it only reads, and how to run it in CI or at startup with any query function.
+- `generateMigration`: the three output formats, and the rule that active steps only add and everything else is commented out for review.
+- Workflow for a project with no migration tool yet: run the drift check against the existing database first, fix the definitions until it reports nothing, then adopt generated drafts for new changes.
+- Limits: the three documented limits listed below.
+- The `runner` call for node-pg-migrate was never run. Either run it once against a local database or mark it as untested.
+
+`docs/upgrading/to-0.5.0.md`, new
+
+This PR creates the file with the parts it owns. PR 2 adds the rest.
+
+- Who needs this: anyone on 0.4.x. The upgrade is not automatic under a caret range.
+- Step "Column types are now typed":
+  - *What changed*: column types such as `BOOLEAN`, `UUID`, `BIGINT`, `JSON` and `JSONB` map to concrete TypeScript types. Code that passed any value for those columns may stop compiling.
+  - *Find it*: run the type check. Each error names the column.
+  - *Change it*: fix the value's type, or remove a cast that is no longer needed. `BIGINT` is `string | number`. `JSON` and `JSONB` are `unknown` and need a cast when read.
+  - *Check it*: the type check passes with fewer `as any` casts than before.
+- Step "Only the package entry points can be imported":
+  - *What changed*: the package now has an `exports` map. Imports of inner paths such as `pg-lightquery/dist/...` fail.
+  - *Find it*: search for `pg-lightquery/` followed by anything other than `schema`.
+  - *Change it*: import from `pg-lightquery` or `pg-lightquery/schema`.
+- Step "String defaults are literals":
+  - *What changed*: a string `default` in a table definition is a literal unless it is on the compatibility list from §2.
+  - *Find it*: search the table definitions for `default:` with a string value.
+  - *Change it*: wrap an expression in `sqlExpression(...)`.
+
+`README.md`
+
+- Add the links to `docs/features/schema.md` and the 0.5.0 row to the upgrade table that PR 1 created.
+
+`CHANGELOG.md`
+
+- The 0.5.0 entry from §8 links to `docs/upgrading/to-0.5.0.md`.
 
 ## Kept as documented limits
 
@@ -176,6 +214,7 @@ The PR description lists these. They stay out of scope.
 - CI is green with the live tests running.
 - `tsc --noEmit` passes.
 - The changelog entry exists, and `package.json` has the `exports` map.
+- `docs/features/schema.md` exists, `docs/upgrading/to-0.5.0.md` has the three steps from §11, and the README links to both.
 - apihigia and ocaproperties compile against a local tarball.
 
 ## Risks

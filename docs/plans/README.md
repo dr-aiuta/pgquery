@@ -9,7 +9,7 @@ Four plans, one per pull request. Together they cover every change cited in the 
 | 1 | [01-safety.md](01-safety.md) | new | 0.4.7 | no | about 2 days |
 | 2 | [04-schema-pr14.md](04-schema-pr14.md) | #14, open | 0.5.0 | TypeScript types only | about 2 days |
 | 3 | [02-secure-defaults.md](02-secure-defaults.md) | new | 0.5.0 | yes | about 3 days |
-| 4 | [03-tidy.md](03-tidy.md) | new | 0.5.1 | no | about 2 days |
+| 4 | [03-tidy.md](03-tidy.md) | new | 0.5.1 | no for valid calls | about 2 days |
 
 Effort is a rough estimate for one engineer who knows the code.
 
@@ -18,6 +18,78 @@ The order has three reasons.
 - PR 1 goes first because apihigia and ocaproperties pick up 0.4.7 on their next install. It also adds the CI job with Postgres that the later PRs need.
 - PR #14 merges before PR 2. It is already written, and PR 2 is easier to write on top of it than the reverse. Both ship together in 0.5.0, so consumers migrate once.
 - PR 3 goes last. It moves files, and a file move conflicts with every other open branch.
+
+## Documentation the PRs create
+
+Each PR also writes user documentation. The docs live in `docs/`, and the root `README.md` links to every page. They are written for any project that uses the library. They never name a consuming app.
+
+```
+docs/
+├── features/
+│   ├── filters.md                   where operators, allow-lists, sorting, paging
+│   ├── writes.md                    insert, upsert, update, null, returnField
+│   ├── transactions-and-chains.md   transaction(), chained inserts and updates
+│   ├── connection.md                initialize, logger, end(), errors
+│   └── schema.md                    column types, sqlExpression, drift check, migration drafts
+├── upgrading/
+│   ├── to-0.4.7.md                  from any 0.4.x
+│   ├── to-0.5.0.md                  from 0.4.x, breaking
+│   ├── to-0.5.1.md                  from 0.5.0
+│   └── from-0.0.x.md                from the old DatabaseManager API
+└── plans/                           these plans, for maintainers
+```
+
+Which PR writes what:
+
+| File | Created by | Extended by |
+|---|---|---|
+| `README.md`, new "Documentation" section | PR 1 | every later PR adds its links |
+| `docs/upgrading/to-0.4.7.md` | PR 1 | |
+| `docs/features/filters.md` | PR 1 | PR 2 |
+| `docs/features/transactions-and-chains.md` | PR 1 | PR 3 |
+| `docs/features/connection.md` | PR 1 | PR 2 |
+| `docs/features/schema.md` | PR #14 | |
+| `docs/upgrading/to-0.5.0.md` | PR #14 | PR 2 |
+| `docs/features/writes.md` | PR 2 | PR 3 |
+| `docs/upgrading/from-0.0.x.md` | PR 2 | |
+| `docs/upgrading/to-0.5.1.md` | PR 3 | |
+
+Each plan has a "Documentation" section with the outline of its pages.
+
+### Rules for every page
+
+- Write for a reader who has never seen apihigia or ocaproperties. Use the `users`, `posts` and `addresses` fixtures from `tests/tables/` in every example.
+- Mark each feature with the version that introduced it, as "Since 0.5.0".
+- Document what is new or changed. The root README keeps the basics and links here for the rest.
+- Use relative links. They resolve on GitHub. Check them on the npm package page after the first publish.
+- Take every code example from a test that runs in CI. An example with no test behind it goes stale.
+
+### Template for an upgrade guide
+
+Each file in `docs/upgrading/` has the same five parts.
+
+1. **Who needs this.** The versions it starts from, and whether the upgrade is automatic under a caret range.
+2. **What is new.** One line per feature, each linking to its page in `docs/features/`.
+3. **Before you start.** Pin the current version, run the test suite, and note the result.
+4. **Steps.** One per breaking or behavior change. Every step has four fixed parts:
+   - *What changed*, in one or two sentences.
+   - *Find it*: a search command or a compiler error that locates affected code in any repo.
+   - *Change it*: a before and after example.
+   - *Check it*: how to confirm the change is right.
+5. **After the upgrade.** The checks to run, and how to roll back by pinning the previous version.
+
+A step that needs a judgement call says so. It states the question the reader must answer about their own code.
+
+### Template for a feature page
+
+- What it does, in two or three sentences.
+- A minimal example.
+- Options, in a table.
+- Limits and failure modes.
+
+### How the app checklists relate
+
+PR 2 keeps one checklist for apihigia and one for ocaproperties. They are the generic guide applied to those two repos. Each checklist item names the step of `docs/upgrading/to-0.5.0.md` it comes from. The checklists stay in the plans and are never copied into `docs/upgrading/`.
 
 ## Where the plans differ from the review
 

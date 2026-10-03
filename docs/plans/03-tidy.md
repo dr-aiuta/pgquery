@@ -4,13 +4,13 @@
 |---|---|
 | Pull request | new, branch from `main` after 0.5.0 is released |
 | Release | 0.5.1, patch |
-| Breaking | no |
+| Breaking | no for valid calls. Raw SQL in chain names or `selectFrom` columns is rejected, see §1. |
 | Depends on | PR 1, PR 2, PR #14 |
 | Effort | about 2 days |
 
 ## Goal
 
-Remove duplication and dead code, rebuild the chained builder without regex, and move files into a layout that matches what the code does. Consumers see no behavior change, apart from two additions that let them delete boilerplate.
+Remove duplication and dead code, rebuild the chained builder without regex, and move files into a layout that matches what the code does. Valid calls behave the same. Two additions let consumers delete boilerplate. Two new checks reject input that was raw SQL or could never have run.
 
 This PR goes last because it moves files. A file move conflicts with every other open branch.
 
@@ -34,7 +34,7 @@ Covers the rest of S7.
 
 - Add `ident(name)` in `src/sql/identifiers.ts`. It accepts only `^[A-Za-z_][A-Za-z0-9_]*$` and returns the name in double quotes. Anything else throws `QueryInputError`.
 - Use it at every site that writes a column, a CTE name or a reference field. That includes the chained builder's `cteName`, `reference.from`, `reference.field` and `reference.to` (`src/utils/chained-insert-builder.ts:288`, `:387`, `:388`, `:418`, `:421`).
-- `selectFrom(cteName, columns)` takes raw text today (`chained-insert-builder.ts:251`, `:307`). Accept `'*'` or a list of column names, each passed through `ident`.
+- `selectFrom(cteName, columns)` takes raw text today (`chained-insert-builder.ts:251`, `:307`). Accept `'*'`, one column name, or an array of column names, each passed through `ident`. All four chains in apihigia and ocaproperties pass `'*'` or nothing.
 - Table names are validated and not quoted. Quoting would stop Postgres from folding case, which would break a table defined with capitals. A schema-qualified name is split on the dot and each part is checked.
 
 Tests. A CTE name with a space throws. A `selectFrom` column list with a subquery throws. Existing chains produce the same SQL.
@@ -163,6 +163,50 @@ Add `"noUnusedLocals": true` to `tsconfig.json`. It reports 23 unused declaratio
 - Format the repo in one commit that changes nothing else. List that commit in `.git-blame-ignore-revs`.
 - Add `npm run format:check` to `ci.yml`.
 
+### 14. Documentation
+
+The structure and the page templates are in the [plans index](README.md#documentation-the-prs-create).
+
+`docs/upgrading/to-0.5.1.md`, new
+
+- Who needs this: anyone on 0.5.0. A caret range installs it automatically. Most projects change nothing.
+- What is new: chains accept table classes, chains keep ON CONFLICT on referenced inserts, and one base class.
+- Steps. The first two can throw for unusual input. The last two are optional clean-ups.
+  1. **Chain names and columns must be plain identifiers.**
+     - *What changed*: a CTE name, a reference field and each `selectFrom` column must match `^[A-Za-z_][A-Za-z0-9_]*$`. `selectFrom` no longer accepts an expression.
+     - *Find it*: search for `selectFrom(` and read the second argument. Search for chain step names with spaces or quotes.
+     - *Change it*: pass `'*'` or column names. Compute expressions in a follow-up select.
+  2. **Predefined SQL values must match its placeholders.**
+     - *What changed*: a mismatch throws when the query is built, where it used to fail in Postgres.
+     - *Find it*: search for `predefinedSQL` with a `values` array.
+     - *Change it*: remove the unused values, or add the missing placeholder.
+  3. **Optional: pass table classes to chains.**
+     - *Find it*: search your table classes for a getter that returns `this.db`.
+     - *Change it*: pass the table instance to `insert` and delete the getter.
+  4. **Optional: use `TableBase` everywhere.**
+     - *Find it*: search for `EnhancedTableBase`.
+     - *Change it*: extend `TableBase`. The old name keeps working and is marked deprecated.
+- After the upgrade: run the type check and the tests. To roll back, pin `0.5.0`.
+
+`docs/features/transactions-and-chains.md`, extended
+
+- Chains: steps run in the order they are called, a reference keeps its ON CONFLICT clause, and a step takes a table class or a registered table name.
+- `registerRelatedTable` on `TableBase`.
+- The result shape of `build()` and `execute()`.
+
+`docs/features/writes.md`, extended
+
+- `sqlExpression` as a value in insert and update data, with the note that request data cannot forge one.
+
+`README.md`
+
+- Add the 0.5.1 row to the upgrade table.
+- Replace the "Chained Insert & Update Builder" and "Enhanced TableBase" sections with a short example and a link to the feature page. Those two sections are 170 lines today.
+
+`CHANGELOG.md`
+
+- The 0.5.1 entry links to `docs/upgrading/to-0.5.1.md`.
+
 ## Out of scope
 
 Nothing here changes generated SQL, apart from §2 keeping the ON CONFLICT clause and emitting steps in call order.
@@ -172,6 +216,7 @@ Nothing here changes generated SQL, apart from §2 keeping the ON CONFLICT claus
 - CI is green, including the format check and the `sql/` purity check.
 - `tsc --noEmit` passes with `noUnusedLocals`.
 - `src/` has the layout in §9.
+- The pages in §14 exist, and every link from `README.md` into `docs/` resolves.
 - The SQL fixtures for the four consumer chains are unchanged, except where §2 fixes them.
 - apihigia and ocaproperties compile against a local tarball without any change.
 
