@@ -171,4 +171,52 @@ describe('Table Operations - Advanced Query Operations', () => {
 		// The key point: we can filter by 'posts' and 'addresses' which don't exist in the users table schema
 		// but are available in the joined result from the predefined SQL query
 	});
+	describe('sorting and paging SQL', () => {
+		it('writes ORDER BY once for two sort keys, in the order of the object keys', () => {
+			const byNameThenId = usersTable.selectUsers(['id', 'name'], {
+				where: {'name.orderBy': 'ASC', 'id.orderBy': 'DESC'},
+			});
+			expect(byNameThenId.query.sqlText).toBe('SELECT "id", "name" FROM users ORDER BY "name" ASC, "id" DESC');
+
+			const byIdThenName = usersTable.selectUsers(['id', 'name'], {
+				where: {'id.orderBy': 'DESC', 'name.orderBy': 'ASC'},
+			});
+			expect(byIdThenName.query.sqlText).toBe('SELECT "id", "name" FROM users ORDER BY "id" DESC, "name" ASC');
+		});
+
+		it('pages with LIMIT and OFFSET, in that order', () => {
+			const page = usersTable.selectUsers(['id', 'name'], {
+				where: {'id.orderBy': 'ASC', offset: 20, limit: 10} as any,
+			});
+
+			expect(page.query.sqlText).toBe('SELECT "id", "name" FROM users ORDER BY "id" ASC LIMIT 10 OFFSET 20');
+			// offset is a paging key. It is no longer bound as a filter value.
+			expect(page.query.values).toEqual([]);
+		});
+
+		it('accepts offset alone and as a numeric string', () => {
+			const page = usersTable.selectUsers(['id', 'name'], {where: {name: 'John Doe', offset: '5'} as any});
+
+			expect(page.query.sqlText).toBe('SELECT "id", "name" FROM users WHERE "name" = $1 OFFSET 5');
+			expect(page.query.values).toEqual(['John Doe']);
+		});
+
+		it('rejects an offset that is not a non-negative integer', () => {
+			const payloads = ['1; DELETE FROM users', '(SELECT pg_sleep(5))', '-1', '1.5', '', null, true, {}];
+			for (const offset of payloads) {
+				expect(() => usersTable.selectUsers(['id', 'name'], {where: {offset} as any})).toThrow(
+					/Invalid offset value/
+				);
+			}
+		});
+
+		it('keeps limit and offset in selectWithCustomSchema with an explicit column list', () => {
+			const page = usersTable.selectUserDetails(['id', 'name'], {
+				where: {'name.like': 'J%', 'id.orderBy': 'ASC', limit: 10, offset: 20} as any,
+			});
+
+			expect(page.query.sqlText).toMatch(/WHERE "name" LIKE \$1 ORDER BY "id" ASC LIMIT 10 OFFSET 20$/);
+			expect(page.query.values).toEqual(['J%']);
+		});
+	});
 });

@@ -54,23 +54,9 @@ export async function executeInsertQuery<T>(sqlText: string, values: any[]): Pro
  * @throws Throws an error if any of the queries fail.
  */
 export async function executeTransactionQuery(queryObjects: QueryObject[] = []): Promise<QueryArrayResult<any>[]> {
-	const results = [];
-	try {
-		await dbpg.query('BEGIN');
-		for (const queryObj of queryObjects) {
-			// Execute each query with its parameterized values
-			results.push(await dbpg.query(queryObj.sqlText, queryObj.values));
-		}
-		await dbpg.query('COMMIT');
-	} catch (error) {
-		try {
-			await dbpg.query('ROLLBACK');
-		} catch (rollbackError) {
-			console.error('Rollback failed:', rollbackError);
-		}
-		throw error; // Re-throw the original error
-	}
-	return results;
+	// One client runs BEGIN, every statement and COMMIT. See PostgresConnection.transaction.
+	const results = await dbpg.transaction(queryObjects);
+	return results as unknown as QueryArrayResult<any>[];
 }
 
 /**

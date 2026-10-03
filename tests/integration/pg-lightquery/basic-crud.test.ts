@@ -1,4 +1,31 @@
 import {setupTests, dbpg, usersTable} from './test-setup';
+import {DatabaseOperations} from '../../../src/core/database-operations';
+import {ColumnDefinition, TableDefinition} from '../../../src/types/core-types';
+
+// A table with a two-column primary key, for the upsert cases.
+type PostTagsSchema = {[K in 'postId' | 'tag' | 'note']: ColumnDefinition};
+const postTagsTable: TableDefinition<PostTagsSchema> = {
+	tableName: 'post_tags',
+	schema: {
+		columns: {
+			postId: {type: 'INTEGER', primaryKey: true},
+			tag: {type: 'TEXT', primaryKey: true},
+			note: {type: 'TEXT'},
+		},
+	},
+};
+
+// A table where every column has a default and there is no lastChangedBy column.
+type VisitsSchema = {[K in 'id' | 'createdAt']: ColumnDefinition};
+const visitsTable: TableDefinition<VisitsSchema> = {
+	tableName: 'visits',
+	schema: {
+		columns: {
+			id: {type: 'INTEGER', primaryKey: true, autoIncrement: true},
+			createdAt: {type: 'TIMESTAMP WITHOUT TIME ZONE', notNull: true, default: 'NOW()'},
+		},
+	},
+};
 
 describe('Table Operations - Basic CRUD Operations', () => {
 	setupTests();
@@ -188,5 +215,74 @@ describe('Table Operations - Basic CRUD Operations', () => {
 
 		// Test that execute function exists
 		expect(typeof updateResult.execute).toBe('function');
+	});
+	describe('upsert and empty insert SQL', () => {
+		const postTagsDb = new DatabaseOperations(postTagsTable);
+		const visitsDb = new DatabaseOperations(visitsTable);
+
+		it('quotes each column of a composite key on its own', () => {
+			const upsert = postTagsDb.insert({
+				allowedColumns: '*',
+				options: {data: {postId: 1, tag: 'news', note: 'first'}, onConflict: true, returnField: '*'},
+			});
+
+			expect(upsert.query.sqlText).toBe(
+				'INSERT INTO post_tags ("postId", "tag", "note")\n' +
+					'VALUES ($1, $2, $3) ON CONFLICT ("postId", "tag") DO UPDATE SET "note" = EXCLUDED."note"\n' +
+					'RETURNING *;'
+			);
+			expect(upsert.query.values).toEqual([1, 'news', 'first']);
+		});
+
+		it('does nothing on conflict when the data holds only key columns', () => {
+			const upsert = postTagsDb.insert({
+				allowedColumns: '*',
+				options: {data: {postId: 1, tag: 'news'}, onConflict: true, returnField: '*'},
+			});
+
+			expect(upsert.query.sqlText).toBe(
+				'INSERT INTO post_tags ("postId", "tag")\n' +
+					'VALUES ($1, $2) ON CONFLICT ("postId", "tag") DO NOTHING\n' +
+					'RETURNING *;'
+			);
+			expect(upsert.query.sqlText).not.toContain('DO UPDATE SET');
+		});
+
+		it('keeps the single-key upsert SQL as it was', () => {
+			const upsert = usersTable.insertUser(['id', 'name', 'email'], {
+				data: {id: 1, name: 'John Doe', email: 'john.doe@example.com'},
+				onConflict: true,
+				returnField: 'id',
+			});
+
+			expect(upsert.query.sqlText).toBe(
+				'INSERT INTO users ("id", "name", "email", "lastChangedBy")\n' +
+					'VALUES ($1, $2, $3, $4) ON CONFLICT ("id") DO UPDATE SET "name" = EXCLUDED."name", "email" = EXCLUDED."email"\n' +
+					'RETURNING "id";'
+			);
+		});
+
+		it('inserts DEFAULT VALUES when the data yields no column', () => {
+			const insert = visitsDb.insert({allowedColumns: '*', options: {data: {}, returnField: 'id'}});
+
+			expect(insert.query.sqlText).toBe('INSERT INTO visits DEFAULT VALUES\nRETURNING "id";');
+			expect(insert.query.values).toEqual([]);
+		});
+	});
+
+	describe('returnField validation', () => {
+		const injected = 'id"; DROP TABLE users; --';
+
+		it('rejects a returnField with a double quote in an insert', () => {
+			expect(() =>
+				usersTable.insertUser(['name'], {data: {name: 'John Doe'}, returnField: injected as any})
+			).toThrow(/Invalid returnField/);
+		});
+
+		it('rejects a returnField with a double quote in an update', () => {
+			expect(() =>
+				usersTable.updateUser(['name'], {data: {name: 'John Doe'}, where: {id: 1}, returnField: injected as any})
+			).toThrow(/Invalid returnField/);
+		});
 	});
 });
