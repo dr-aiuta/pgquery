@@ -56,7 +56,8 @@ const orderByField = function (aliasPrefix: string, field: string, value: any, o
 	if (!ORDER_BY_DIRECTIONS.includes(direction)) {
 		throw new Error(`Invalid orderBy direction for ${field}: ${String(value)}. Expected 'ASC' or 'DESC'.`);
 	}
-	orderByParts.push(`ORDER BY ${aliasPrefix}"${field}" ${direction}`);
+	// queryConstructor writes the ORDER BY keyword once, in front of all the parts.
+	orderByParts.push(`${aliasPrefix}"${field}" ${direction}`);
 };
 
 const likeField = function (

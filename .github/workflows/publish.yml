@@ -32,12 +32,15 @@ jobs:
           node-version: 22
           registry-url: https://registry.npmjs.org
 
-      # Trusted Publishing needs npm 11.5.1 or newer.
-      - run: npm install -g npm@latest
+      # Trusted Publishing needs npm 11.5.1 or newer. The major version is pinned,
+      # because this job holds id-token: write.
+      - run: npm install -g npm@11
 
+      # The tag reaches the script through the environment, never through the script text.
       - name: Check tag matches package.json version
+        env:
+          TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
         run: |
-          TAG="${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}"
           PKG="v$(node -p "require('./package.json').version")"
           if [ "$TAG" != "$PKG" ]; then
             echo "Tag $TAG does not match package.json version $PKG"
