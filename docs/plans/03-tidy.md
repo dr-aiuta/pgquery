@@ -18,13 +18,13 @@ This PR goes last because it moves files. A file move conflicts with every other
 
 | Consumer | Code change needed | What improves |
 |---|---|---|
-| apihigia | none | Three classes can delete their `get dbOperations()` getter. The 3 `EnhancedTableBase` classes keep compiling and can switch to `TableBase` at any time. |
-| ocaproperties | none | All 8 classes can delete their `get dbOperations()` getter. |
+| Consumer A | none | Three classes can delete their `get dbOperations()` getter. The 3 `EnhancedTableBase` classes keep compiling and can switch to `TableBase` at any time. |
+| Consumer B | none | All 8 classes can delete their `get dbOperations()` getter. |
 
 Two things must not change, because the apps depend on them:
 
-- The chained builder returns `{queries, execute}`, and `execute()` resolves to an array of pg results. ocaproperties reads `results[0].rows[0]`.
-- The method names `insertIntoTable`, `insertIntoTableWithReference` and `updateTable` keep working. apihigia uses all three.
+- The chained builder returns `{queries, execute}`, and `execute()` resolves to an array of pg results. Consumer B reads `results[0].rows[0]`.
+- The method names `insertIntoTable`, `insertIntoTableWithReference` and `updateTable` keep working. Consumer A uses all three.
 
 ## Changes
 
@@ -34,7 +34,7 @@ Covers the rest of S7.
 
 - Add `ident(name)` in `src/sql/identifiers.ts`. It accepts only `^[A-Za-z_][A-Za-z0-9_]*$` and returns the name in double quotes. Anything else throws `QueryInputError`.
 - Use it at every site that writes a column, a CTE name or a reference field. That includes the chained builder's `cteName`, `reference.from`, `reference.field` and `reference.to` (`src/utils/chained-insert-builder.ts:288`, `:387`, `:388`, `:418`, `:421`).
-- `selectFrom(cteName, columns)` takes raw text today (`chained-insert-builder.ts:251`, `:307`). Accept `'*'`, one column name, or an array of column names, each passed through `ident`. All four chains in apihigia and ocaproperties pass `'*'` or nothing.
+- `selectFrom(cteName, columns)` takes raw text today (`chained-insert-builder.ts:251`, `:307`). Accept `'*'`, one column name, or an array of column names, each passed through `ident`. All four chains in Consumer A and Consumer B pass `'*'` or nothing.
 - Table names are validated and not quoted. Quoting would stop Postgres from folding case, which would break a table defined with capitals. A schema-qualified name is split on the dot and each part is checked.
 
 Tests. A CTE name with a space throws. A `selectFrom` column list with a subquery throws. Existing chains produce the same SQL.
@@ -54,7 +54,7 @@ Change.
 
 The marker is branded with a registered symbol. JSON from a request cannot carry a symbol key, so request data cannot forge an expression.
 
-Tests. A referenced insert with `onConflict: true` keeps its ON CONFLICT clause. An insert that references an earlier update runs against Postgres. The three apihigia chains and the ocaproperties chain are reproduced as fixtures, and their SQL is asserted.
+Tests. A referenced insert with `onConflict: true` keeps its ON CONFLICT clause. An insert that references an earlier update runs against Postgres. The three Consumer A chains and the Consumer B chain are reproduced as fixtures, and their SQL is asserted.
 
 ### 3. Chains accept a table class (new)
 
@@ -71,7 +71,7 @@ Accept a `TableBase` instance as well. The builder reads its `db` through a modu
 ### 5. Merge EnhancedTableBase into TableBase
 
 - Move `registerRelatedTable`, `getRelatedTable`, `createChainedInsert` and `chainedInsert` into `TableBase`. Create the registry on first use.
-- Keep `EnhancedTableBase` as a deprecated alias of `TableBase`. apihigia's three classes keep compiling.
+- Keep `EnhancedTableBase` as a deprecated alias of `TableBase`. Consumer A's three classes keep compiling.
 
 There is then one base class to choose.
 
@@ -80,7 +80,7 @@ There is then one base class to choose.
 Placeholder renumbering is written six times: `adjustPlaceholders` (`src/utils/query-utils.ts:97`), and inline copies at `src/utils/query-builder.ts:122` and `chained-insert-builder.ts:326` and `:353`. The other two were in the builders PR 2 deleted.
 
 - Keep one `renumber(sql, offset)` and one `maxPlaceholder(sql)` in `src/sql/placeholders.ts`.
-- Add a check (new): when predefined SQL has `values`, their count must match its highest placeholder. A mismatch throws when the query is built. apihigia has one such call at `charges.ts:152`, which fails only when it reaches Postgres.
+- Add a check (new): when predefined SQL has `values`, their count must match its highest placeholder. A mismatch throws when the query is built. Consumer A has one such call, which fails only when it reaches Postgres.
 
 ### 7. One select implementation
 
@@ -218,7 +218,7 @@ Nothing here changes generated SQL, apart from §2 keeping the ON CONFLICT claus
 - `src/` has the layout in §9.
 - The pages in §14 exist, and every link from `README.md` into `docs/` resolves.
 - The SQL fixtures for the four consumer chains are unchanged, except where §2 fixes them.
-- apihigia and ocaproperties compile against a local tarball without any change.
+- Consumer A and Consumer B compile against a local tarball without any change.
 
 ## Risks
 

@@ -12,7 +12,7 @@
 
 Make the safe choice the default, remove what does not work, and put every breaking change in one release.
 
-Consumers on `^0.4.x` do not receive 0.5.0 automatically. apihigia and ocaproperties upgrade by hand, with the checklists at the end of this plan.
+Consumers on `^0.4.x` do not receive 0.5.0 automatically. Consumer A and Consumer B upgrade by hand, each with its own checklist.
 
 ## Decisions
 
@@ -23,7 +23,7 @@ Consumers on `^0.4.x` do not receive 0.5.0 automatically. apihigia and ocaproper
 | Unknown data keys | Keep dropping keys outside `allowedColumns` | Throw | Both apps spread objects with extra keys. The allow-list is the guard for writes. |
 | `allowedColumns` | Required. `'*'` is valid when written out. | A per-column "secret" flag | A visible choice at each call site. Both apps already write `'*'` at almost every site. |
 | `lastChangedBy` | Keep automatic | Opt-in per table | See §12. |
-| Predefined SQL | Wrap as a subquery, remove `alias` | Keep appending | apihigia wraps by hand today. It removes an injection sink. |
+| Predefined SQL | Wrap as a subquery, remove `alias` | Keep appending | Consumer A wraps by hand today. It removes an injection sink. |
 | `in` | One array parameter | Many placeholders with a cap | It fixes the empty-list error. |
 
 ## Changes
@@ -101,9 +101,9 @@ Both apps log in their own wrappers and do not read the library's output. Passin
 
 ### 9. Wrap predefined SQL as a subquery, and remove `alias`
 
-Covers the `alias` part of S7. The wrapping is new, from apihigia.
+Covers the `alias` part of S7. The wrapping is new, from Consumer A.
 
-Problem. `select` and `selectWithCustomSchema` append the generated WHERE to the predefined SQL (`database-operations.ts:167`, `:272`). That fails when the predefined SQL already has a WHERE, GROUP BY or ORDER BY. apihigia wraps its SQL as `SELECT * FROM (...) x` by hand to avoid this.
+Problem. `select` and `selectWithCustomSchema` append the generated WHERE to the predefined SQL (`database-operations.ts:167`, `:272`). That fails when the predefined SQL already has a WHERE, GROUP BY or ORDER BY. Consumer A wraps its SQL as `SELECT * FROM (...) x` by hand to avoid this.
 
 Change.
 
@@ -133,14 +133,14 @@ Add `maxLimit?: number` to `TableDefinition`. A `limit` above it throws. Without
 
 The review listed opt-in as optional. The survey decides against it.
 
-- ocaproperties has the column in all 9 tables and passes `idUser` on every write. Opt-in would stop its audit trail without an error.
-- apihigia has no such column in any table. The behavior never triggers there.
+- Consumer B has the column in all 9 tables and passes `idUser` on every write. Opt-in would stop its audit trail without an error.
+- Consumer A has no such column in any table. The behavior never triggers there.
 
 Document the convention in the README instead. No code change.
 
 ### 13. Conflict target for upserts (new)
 
-From ocaproperties. `onConflict: true` can only target the primary key. ocaproperties needs a unique column, and runs a collision check by hand at `tableBases/bookings.ts:92`.
+From Consumer B. `onConflict: true` can only target the primary key. Consumer B needs a unique column, and runs a collision check by hand.
 
 Accept `onConflict: true | {target: (keyof T)[]}`. The target columns are validated against the schema. `true` keeps meaning the primary key.
 
@@ -244,9 +244,9 @@ Verify every row of the mapping table against the 0.0.19 source before publishin
 
 | Idea | Source | Why not now |
 |---|---|---|
-| `delete()` | ocaproperties test notes | One mention. Raw SQL covers it. Revisit when a second app needs it. |
-| Multi-row insert | ocaproperties "on hold" note | Same. |
-| Batch updates in one transaction | apihigia `WebhookProcessor.ts:413` | `transaction().add()` already does this, and PR 1 makes it atomic. |
+| `delete()` | Consumer B test notes | One mention. Raw SQL covers it. Revisit when a second app needs it. |
+| Multi-row insert | Consumer B "on hold" note | Same. |
+| Batch updates in one transaction | Consumer A | `transaction().add()` already does this, and PR 1 makes it atomic. |
 | Per-column "secret" flag | this review | Required allow-lists cover it with no new concept. |
 
 ## Done when
@@ -254,37 +254,12 @@ Verify every row of the mapping table against the 0.0.19 source before publishin
 - CI is green, including new live cases for §3, §9 and §10.
 - `CHANGELOG.md` has a 0.5.0 entry with one migration note per breaking change.
 - The pages in §15 exist. Together they document `ignoreUnknownKeys`, `maxLimit`, the logger, `onConflict.target`, `QueryInputError` and the `lastChangedBy` convention. The README links to each page, and the changelog entry links to the guide.
-- Someone who has only `docs/upgrading/to-0.5.0.md` can produce the two checklists below from the two repos. That is the test that the guide is general enough.
-- apihigia and ocaproperties compile against a local tarball of the branch after applying their checklists.
+- Someone who has only `docs/upgrading/to-0.5.0.md` can produce the two consumer checklists from the two projects. That is the test that the guide is general enough.
+- Consumer A and Consumer B compile against a local tarball of the branch after applying their checklists.
 
-## Migration checklist: apihigia
+## Migration checklists
 
-This is `docs/upgrading/to-0.5.0.md` applied to apihigia. Each item ends with the guide step it comes from. Paths are under `/Users/dr/code/higia/apihigia`.
-
-1. Add `allowedColumns` where it is omitted: the update at `contacts.ts:113`, and each step of the three chains at `charges.ts:223`, `transactions.ts:129` and `places.ts:65`. (Step 1)
-2. Set `ignoreUnknownKeys: true` on the 12 routes that pass `req.query` as `where`. Examples are `contacts/controller.ts:16`, `deals/controller.ts:18` and `finance/accounts/controller.ts:20`. Replace `'*'` with an explicit list on each. `GET /finance/accounts` filters a table with personal data. (Step 2)
-3. Do the same for the three custom-schema routes: `staffJobs.ts:123`, `otherExpenses.ts:149` and `trips.ts:196`. (Step 2)
-4. Strip nulls before the update at `WebhookProcessor.ts:474-480`. The payment provider sends null for fields it does not know, and writing them would clear stored values. (Step 3)
-5. Review the explicit nulls in chain inserts at `charges.ts:426`, `transactions.ts:157` and `:262`. They are skipped today and will be written. (Step 3)
-6. Decide what null means on the six PATCH routes that pass the body as `data`. After the upgrade a null clears the column. (Step 3)
-7. Map `QueryInputError` to 400 in the error middleware. (Step 2)
-8. Optional: remove the hand-written `SELECT * FROM (...) x` wrappers. (Step 7)
-
-Not affected: `charges.ts:258` spreads an array into update data. The keys `"0"`, `"1"` and so on are still dropped.
-
-## Migration checklist: ocaproperties
-
-This is the same guide applied to ocaproperties. Paths are under `/Users/dr/code/oca/ocaproperties`.
-
-1. Add `allowedColumns` to the update at `tableBases/agreements.ts:73` and to both steps of the chain at `src/services/captures/insert.ts:111-139`. That update takes an unvalidated PATCH body, so use an explicit list. (Step 1)
-2. Set `ignoreUnknownKeys: true` and an explicit list on the two pass-through routes: `services/bookings/select.ts:31` and `services/captures/select.ts:55`. (Step 2)
-3. Check `services/bookings/select.ts:53`. It puts `platformName` and `checkInDate` into `where`. They must be columns of the predefined SQL's result. (Step 7)
-4. Drop a null `idOcaBooking` before the bookings upsert (`adapters/gspreadsheet/index.ts:221`). Today the old value survives. After the upgrade a null would clear it. (Step 3)
-5. Review the agreement inserts at `sync/captures/propertyCapture.ts:50`. They send null dates, which will be written as NULL. (Step 3)
-6. Replace the collision check at `tableBases/bookings.ts:92` with `onConflict: {target: [...]}` if a unique constraint exists. (New feature, `docs/features/writes.md`)
-7. No change needed for `?x.null=true`. `src/app.ts:49` turns it into boolean `true`, which the library reads as IS NOT NULL today. After the upgrade it means IS NULL, which is what the client asked for. (Step 4)
-
-New capability: the agreement PATCH at `services/captures/update.ts:33` can clear a date.
+There is one checklist per consumer: `docs/upgrading/to-0.5.0.md` applied to Consumer A and to Consumer B. Each item ends with the guide step it comes from. The checklists describe private projects, so they are kept outside this repository.
 
 ## Risks
 

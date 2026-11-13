@@ -29,14 +29,14 @@ Neither active app has a migration tool, so both gain from this PR.
 
 | Consumer | Situation | What they gain |
 |---|---|---|
-| apihigia | Schema managed by hand. `dev/pending-improvements.md` lists adopting node-pg-migrate as item 14. No tests. | `generateMigration` drafts node-pg-migrate files from the 25 table definitions. `checkSchemaDrift` catches a definition that no longer matches the database. |
-| ocaproperties | No migration tool. Table DDL lives in a legacy repo. | `checkSchemaDrift` in CI, against its 9 table definitions. |
+| Consumer A | Schema managed by hand. Adopting node-pg-migrate is planned. | `generateMigration` drafts node-pg-migrate files from the 25 table definitions. `checkSchemaDrift` catches a definition that no longer matches the database. |
+| Consumer B | No migration tool. | `checkSchemaDrift` in CI, against its 9 table definitions. |
 
 What the survey found in their definitions, and what it means here:
 
-- apihigia uses `TIMESTAMPTZ` and `TIME WITHOUT TIME ZONE`. The PR knows neither. See §6.
-- apihigia has `default: 'CURRENT_TIMESTAMP'` at `tableDefinitions/tasks.ts:60` and `default: true` at `:55`. See §2.
-- ocaproperties uses `UUID` in 9 columns and `BOOLEAN` in 2. The PR gives both a concrete TypeScript type. See §8.
+- Consumer A uses `TIMESTAMPTZ` and `TIME WITHOUT TIME ZONE`. The PR knows neither. See §6.
+- Consumer A has `default: 'CURRENT_TIMESTAMP'` and `default: true` in a table definition. See §2.
+- Consumer B uses `UUID` in 9 columns and `BOOLEAN` in 2. The PR gives both a concrete TypeScript type. See §8.
 - Both apps resolve modules with `Node16`, so a `pg-lightquery/schema` subpath resolves with its types. Neither imports a deep path. See §7.
 
 ## Changes needed in the PR
@@ -69,7 +69,7 @@ Problem. `defaultToSql` emits a string as raw SQL when it looks like `name(...)`
 Change.
 
 - A string is a literal. An expression needs `sqlExpression(...)`.
-- Keep a short compatibility list, matched exactly and without regard to case: `now()`, `CURRENT_TIMESTAMP`, `CURRENT_DATE`, `gen_random_uuid()`. apihigia has `default: 'CURRENT_TIMESTAMP'` today.
+- Keep a short compatibility list, matched exactly and without regard to case: `now()`, `CURRENT_TIMESTAMP`, `CURRENT_DATE`, `gen_random_uuid()`. Consumer A has `default: 'CURRENT_TIMESTAMP'` today.
 - Update the comment on `ColumnDefinition.default` in `src/types/core-types.ts` and the README section.
 
 Tests. Each list entry is emitted raw in upper and lower case. `'Smith (Jr)'`, `'current_user'` and `'version()'` are emitted as quoted literals.
@@ -100,7 +100,7 @@ Test. Extend the existing escaping test: the SQL issued by the rendered file equ
 
 ### 6. Type names the consumers use (new)
 
-Problem. An unknown type falls back to its raw string (`src/schema/schema-drift.ts:181`). apihigia's two `TIMESTAMPTZ` columns and two `TIME WITHOUT TIME ZONE` columns would be reported as drift.
+Problem. An unknown type falls back to its raw string (`src/schema/schema-drift.ts:181`). Consumer A's two `TIMESTAMPTZ` columns and two `TIME WITHOUT TIME ZONE` columns would be reported as drift.
 
 Change.
 
@@ -108,7 +108,7 @@ Change.
 - Add `TIME WITHOUT TIME ZONE`, typed as `string`.
 - Make the fallback in `expectedType` throw for a type that is in neither table. A silent fallback produces false drift.
 
-Acceptance. `checkSchemaDrift` runs over apihigia's 25 definitions and ocaproperties' 9 definitions without throwing on a type name.
+Acceptance. `checkSchemaDrift` runs over Consumer A's 25 definitions and Consumer B's 9 definitions without throwing on a type name.
 
 ### 7. Serve the schema tools from `pg-lightquery/schema`
 
@@ -142,7 +142,7 @@ Change.
 - Add a 0.5.0 section to `CHANGELOG.md`. List each new column type with its TypeScript type. State that `BIGINT` is `string | number` and that `JSON` and `JSONB` are `unknown`.
 - Do not bump `package.json` in this PR. The version changes once, when 0.5.0 is released after PR 2.
 
-Acceptance. apihigia and ocaproperties compile against a local tarball of the branch. Record every error they hit in the changelog entry. ocaproperties has 18 `as any` casts on `where` and `data`, and some of them exist because `UUID` and `BOOLEAN` were untyped.
+Acceptance. Consumer A and Consumer B compile against a local tarball of the branch. Record every error they hit in the changelog entry. Consumer B has 18 `as any` casts on `where` and `data`, and some of them exist because `UUID` and `BOOLEAN` were untyped.
 
 ### 9. Cover the review branches without a database
 
@@ -215,7 +215,7 @@ The PR description lists these. They stay out of scope.
 - `tsc --noEmit` passes.
 - The changelog entry exists, and `package.json` has the `exports` map.
 - `docs/features/schema.md` exists, `docs/upgrading/to-0.5.0.md` has the three steps from §11, and the README links to both.
-- apihigia and ocaproperties compile against a local tarball.
+- Consumer A and Consumer B compile against a local tarball.
 
 ## Risks
 

@@ -12,15 +12,15 @@
 
 Make the library safe under load and fix the SQL it gets wrong, without changing its API.
 
-apihigia (`^0.4.5`) and ocaproperties (`^0.4.6`) receive this release on their next install. Every change below must keep a call that works today working the same way.
+Consumer A (`^0.4.5`) and Consumer B (`^0.4.6`) receive this release on their next install. Every change below must keep a call that works today working the same way.
 
 ## Consumer impact
 
 | Consumer | Code change needed | What improves |
 |---|---|---|
-| apihigia | none | Its 4 `transaction().add().execute()` calls become atomic, for example `deals.ts:71` and `trips.ts:140`. `places.ts:142` stops producing two ORDER BY clauses when a client also sorts. |
-| ocaproperties | none | The properties sync upsert at `src/services/sync/properties/index.ts:31` stops failing with an empty `DO UPDATE SET`. |
-| ocacrm | none | It does not load the library. |
+| Consumer A | none | Its 4 `transaction().add().execute()` calls become atomic. One of its selects stops producing two ORDER BY clauses when a client also sorts. |
+| Consumer B | none | One of its sync upserts stops failing with an empty `DO UPDATE SET`. |
+| Consumer C | none | It does not load the library. |
 | 0.0.x repos | none | No release reaches them. |
 
 Checked against the survey: every `returnField` in both apps is a literal column name or `'*'`, so §4 rejects nothing they send.
@@ -37,9 +37,9 @@ Change.
 
 - Add an overload `PostgresConnection.transaction(queries: QueryObject[])`. It checks out one client, runs BEGIN, each statement and COMMIT on it, and releases it in `finally`.
 - On failure it runs ROLLBACK and rethrows the original error. If ROLLBACK itself fails, it calls `client.release(error)` so the pool destroys the client.
-- Keep the existing form `transaction(text, params)`. ocaproperties calls it at `src/schema/postgres/tableBases/property_capture.ts:242`.
+- Keep the existing form `transaction(text, params)`. Consumer B calls it.
 - Point `executeTransactionQuery` at the new overload. `transaction()`, ChainedInsertBuilder and both CTE builders already go through that function.
-- Stop wrapping errors. The existing form does `throw new Error(e.message)` at `postgres-connection.ts:73`, which loses the pg error code. Rethrow the original instead. apihigia depends on `DatabaseError` code `23505` at `WebhookProcessor.ts:112` and `:216`.
+- Stop wrapping errors. The existing form does `throw new Error(e.message)` at `postgres-connection.ts:73`, which loses the pg error code. Rethrow the original instead. Consumer A depends on `DatabaseError` code `23505`.
 
 Tests.
 
@@ -48,11 +48,11 @@ Tests.
 
 ### 2. Upsert fixes
 
-Covers bug 3, plus two new findings from ocaproperties.
+Covers bug 3, plus two new findings from Consumer B.
 
 - Composite keys. `src/utils/query-builder.ts:86` joins the key columns inside one pair of quotes. Join with `'", "'` so each column is quoted on its own.
-- Nothing to update (new). When every column in `data` is a key column, the builder emits `DO UPDATE SET` with nothing after it. Emit `ON CONFLICT (...) DO NOTHING` in that case. ocaproperties hits this today, and an unawaited loop hides the error.
-- Nothing to insert (new). When `data` yields no columns, the builder emits `INSERT INTO t ("") VALUES ()`. Emit `INSERT INTO t DEFAULT VALUES` instead. The ocaproperties chain starts with `data: {}` and works only because the table has a `lastChangedBy` column.
+- Nothing to update (new). When every column in `data` is a key column, the builder emits `DO UPDATE SET` with nothing after it. Emit `ON CONFLICT (...) DO NOTHING` in that case. Consumer B hits this today.
+- Nothing to insert (new). When `data` yields no columns, the builder emits `INSERT INTO t ("") VALUES ()`. Emit `INSERT INTO t DEFAULT VALUES` instead. The Consumer B chain starts with `data: {}` and works only because the table has a `lastChangedBy` column.
 
 Tests. Assert the SQL text for each case. Run each against Postgres: an upsert on a two-column key, an upsert that sends only the key, and an insert with empty data.
 
@@ -184,7 +184,7 @@ This PR creates the `docs/` folder. The structure and the page templates are in 
 - `CHANGELOG.md` has a 0.4.7 entry that lists each fix.
 - The pages in §10 exist, and every link from `README.md` into `docs/` resolves.
 - The tag `v0.4.7` is pushed and the publish workflow succeeds.
-- apihigia and ocaproperties install 0.4.7 and pass their own type check. ocaproperties also passes its integration suite with `RUN_INTEGRATION=true`.
+- Consumer A and Consumer B install 0.4.7 and pass their own type check. Consumer B also passes its integration suite.
 
 ## Risks
 
