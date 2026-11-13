@@ -10,6 +10,7 @@ Fixes:
 - An upsert whose data holds only key columns emits `ON CONFLICT (...) DO NOTHING`. It used to emit an empty `DO UPDATE SET`.
 - An insert with empty data emits `INSERT INTO ... DEFAULT VALUES`. It used to emit an empty column list.
 - An insert whose data has keys, none of which yields a column, throws `No valid columns provided for insert operation` when the query is built. It used to emit an empty column list, which PostgreSQL rejected.
+- A chained `insertWithReference` step whose data yields no other column inserts the referenced column alone. It used to throw `Unable to parse INSERT statement for reference injection`.
 - Two or more `<column>.orderBy` keys produce one `ORDER BY` clause. Keys keep their object order. The exported helper `pgUtilsHelpers.default.orderByField` therefore pushes `"<column>" ASC` without the `ORDER BY` keyword.
 - `select()` no longer adds `limit` and `offset` to the caller's `allowedColumns` array. A second call with the same array used to throw `Array must contain unique items`.
 - `offset` in a `where` object emits `OFFSET n`. It used to become a filter on a column named `offset`. It takes the same non-negative integer check as `limit`.

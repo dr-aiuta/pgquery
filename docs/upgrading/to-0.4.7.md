@@ -133,6 +133,8 @@ Steps 3, 5 and 6 can change the result of a call that works today. The other ste
   - Data that has keys, none of which yields a column, throws `No valid columns provided for insert operation` when the query is built. A key yields no column when it is outside `allowedColumns`, when it is not in the table definition, or when its value is `null` or `undefined`.
 
   A table with a `lastChangedBy` column is not affected. That column is always inserted, as before.
+
+  In a chain, an `insertWithReference` step with empty data now inserts the referenced column alone. Before, the chain threw `Unable to parse INSERT statement for reference injection`.
 - **Find it.** Search for inserts whose data comes from outside your code:
 
   ```bash
