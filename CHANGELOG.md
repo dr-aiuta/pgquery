@@ -1,6 +1,6 @@
 # v0.4.7
 
-Safety patch. No API change, and no code change is required. See the upgrade guide: [docs/upgrading/to-0.4.7.md](docs/upgrading/to-0.4.7.md).
+Safety patch. No API change, and no code change is expected. The upgrade guide names the cases that need one: [docs/upgrading/to-0.4.7.md](docs/upgrading/to-0.4.7.md).
 
 Fixes:
 
@@ -8,8 +8,10 @@ Fixes:
 - A failed `PostgresConnection.transaction(text, params)` rethrows the original pg error, with its `code`. It used to throw a new plain `Error`.
 - An upsert on a composite primary key quotes each key column on its own in `ON CONFLICT`.
 - An upsert whose data holds only key columns emits `ON CONFLICT (...) DO NOTHING`. It used to emit an empty `DO UPDATE SET`.
-- An insert whose data yields no column emits `INSERT INTO ... DEFAULT VALUES`. It used to emit an empty column list.
-- Two or more `<column>.orderBy` keys produce one `ORDER BY` clause. Keys keep their object order.
+- An insert with empty data emits `INSERT INTO ... DEFAULT VALUES`. It used to emit an empty column list.
+- An insert whose data has keys, none of which yields a column, throws `No valid columns provided for insert operation` when the query is built. It used to emit an empty column list, which PostgreSQL rejected.
+- Two or more `<column>.orderBy` keys produce one `ORDER BY` clause. Keys keep their object order. The exported helper `pgUtilsHelpers.default.orderByField` therefore pushes `"<column>" ASC` without the `ORDER BY` keyword.
+- `select()` no longer adds `limit` and `offset` to the caller's `allowedColumns` array. A second call with the same array used to throw `Array must contain unique items`.
 - `offset` in a `where` object emits `OFFSET n`. It used to become a filter on a column named `offset`. It takes the same non-negative integer check as `limit`.
 - `selectWithCustomSchema()` keeps `limit` and `offset` when `allowedColumns` is an explicit list.
 - `returnField` must be `'*'`, a column of the table definition, or an array of such columns. Anything else throws. It used to be written into the SQL unchecked.
@@ -21,7 +23,7 @@ Added:
 
 Packaging and tooling:
 
-- The published package holds only `dist/`, `package.json` and `README.md`.
+- The published package holds only `dist/`, `package.json` and `README.md`. Declaration maps are no longer built, because they point to `src/`, which is not published.
 - The publish workflow reads the tag from the environment and pins npm to major version 11.
 - A CI workflow runs the type check and the tests, with a PostgreSQL service, on every pull request and on every push to `main`.
 - A live test suite runs against PostgreSQL when `PGLIGHTQUERY_TEST_DATABASE_URL` is set.

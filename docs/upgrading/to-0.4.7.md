@@ -2,7 +2,7 @@
 
 ## Who needs this
 
-Anyone on 0.4.x. A caret range such as `^0.4.5` installs 0.4.7 automatically on the next install. No code change is required.
+Anyone on 0.4.x. A caret range such as `^0.4.5` installs 0.4.7 automatically on the next install. No code change is expected. Steps 3, 5 and 6 name the cases that need one.
 
 ## What is new
 
@@ -19,7 +19,9 @@ Anyone on 0.4.x. A caret range such as `^0.4.5` installs 0.4.7 automatically on 
 
 ## Steps
 
-Nothing breaks in this release. Each step is a behavior note, with a way to find the code it touches and a way to check it.
+Most projects need no code change. Each step is a behavior note, with a way to find the code it touches and a way to check it.
+
+Steps 3, 5 and 6 can change the result of a call that works today. The other steps change calls that failed before, or how they fail.
 
 ### 1. Transactions are now atomic
 
@@ -86,7 +88,7 @@ Nothing breaks in this release. Each step is a behavior note, with a way to find
 
 ### 4. An upsert that sends only key columns does nothing on conflict
 
-- **What changed.** An insert with `onConflict: true` whose data holds only primary key columns used to produce `DO UPDATE SET` with nothing after it, and PostgreSQL rejected it. It now produces `ON CONFLICT (...) DO NOTHING`. Two related fixes: every column of a composite key is quoted on its own, and an insert with no column produces `INSERT INTO ... DEFAULT VALUES`.
+- **What changed.** An insert with `onConflict: true` whose data holds only primary key columns used to produce `DO UPDATE SET` with nothing after it, and PostgreSQL rejected it. It now produces `ON CONFLICT (...) DO NOTHING`. A related fix: every column of a composite key is quoted on its own. Step 7 covers an insert with no column.
 - **Find it.** Search for `onConflict: true`:
 
   ```bash
@@ -108,6 +110,37 @@ Nothing breaks in this release. Each step is a behavior note, with a way to find
 
 - **Change it.** A table with such a column can no longer filter on it through `where`. Filter on it with predefined SQL instead. This is a judgement call only if you have that column. The question to answer: does any query filter on a column named `offset`?
 - **Check it.** A select with `limit` and `offset` returns the expected page. Print `.query.sqlText` to read the SQL.
+
+### 6. `selectWithCustomSchema` applies `limit` and `offset` with an explicit column list
+
+- **What changed.** With `allowedColumns` as an explicit list, `selectWithCustomSchema` used to drop `limit` and `offset` from the `where` object without an error. It now applies them. With `allowedColumns: '*'` they were already applied.
+- **Find it.** Search for `selectWithCustomSchema`:
+
+  ```bash
+  grep -rn "selectWithCustomSchema" src
+  ```
+
+  Look for calls that pass an explicit `allowedColumns` list together with a `where` object that can hold `limit` or `offset`. An object built from request input is the usual case.
+- **Change it.** Nothing, when the caller wants the page it asked for. Two cases need a change:
+  - A caller that sends `limit` and relies on getting every row. Stop sending `limit`.
+  - Predefined SQL that ends in its own `LIMIT` or `OFFSET`. The query now gets a second one, and PostgreSQL rejects it. Remove one of the two.
+- **Check it.** Print `.query.sqlText` of such a call with a `limit`. It ends in `LIMIT n`, and `LIMIT` appears once.
+
+### 7. An insert with no usable column
+
+- **What changed.** An insert whose data yields no column used to produce an empty column list, and PostgreSQL rejected it. There are now two cases:
+  - Empty data, `data: {}`, inserts a row of defaults with `INSERT INTO ... DEFAULT VALUES`.
+  - Data that has keys, none of which yields a column, throws `No valid columns provided for insert operation` when the query is built. A key yields no column when it is outside `allowedColumns`, when it is not in the table definition, or when its value is `null` or `undefined`.
+
+  A table with a `lastChangedBy` column is not affected. That column is always inserted, as before.
+- **Find it.** Search for inserts whose data comes from outside your code:
+
+  ```bash
+  grep -rn "\.insert(" src
+  ```
+
+- **Change it.** Nothing is required for a call that works today. Code that caught the syntax error now gets the new error. It is thrown when the query is built, before `execute()`.
+- **Check it.** Build an insert with one misspelled key in a test. It throws.
 
 ## After the upgrade
 
