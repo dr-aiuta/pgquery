@@ -423,6 +423,22 @@ describe('ChainedInsertBuilder - SQL Generation Tests', () => {
 			expect(sql).toContain('lastChangedBy');
 		});
 
+		it('inserts the referenced column alone when a referenced step has no other column', () => {
+			// posts has no lastChangedBy column, so empty data yields no column of its own.
+			const chainedInsert = createChainedInsert()
+				.insert('new_user', usersDb, {name: 'Test User'}, {returnField: '*'})
+				.insertWithReference('new_post', postsDb, {}, {from: 'new_user', field: 'id', to: 'userId'})
+				.build();
+
+			const {sqlText, values} = chainedInsert.queries[0];
+
+			expect(sqlText).toContain(
+				'new_post AS (\n  INSERT INTO posts ("userId") VALUES ((SELECT "id" FROM new_user)) RETURNING *\n)'
+			);
+			expect(sqlText).not.toContain('DEFAULT VALUES');
+			expect(values).toEqual(['Test User', 'SERVER']);
+		});
+
 		it('should handle special characters in CTE names', () => {
 			const userData: Partial<UsersData> = {name: 'Special User', email: 'special@example.com'};
 

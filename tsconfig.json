@@ -12,8 +12,7 @@
 			"@/*": ["src/*"],
 			"@tests/*": ["tests/*"]
 		},
-		"declaration": true /* Generate .d.ts files from TypeScript and JavaScript files in your project. */,
-		"declarationMap": true /* Create sourcemaps for d.ts files. */
+		"declaration": true /* Generate .d.ts files from TypeScript and JavaScript files in your project. */
 	},
 	"include": ["src/**/*"],
 	"exclude": ["tests/**/*", "node_modules", "dist"]

@@ -34,6 +34,20 @@ A modern, type-safe PostgreSQL query builder for Node.js with TypeScript support
 npm install pg-lightquery
 ```
 
+## Documentation
+
+Feature pages:
+
+- [Filters, sorting and paging](docs/features/filters.md)
+- [Transactions and chains](docs/features/transactions-and-chains.md)
+- [Connection](docs/features/connection.md)
+
+Upgrade guides:
+
+| You are on | You want | Read |
+| ---------- | -------- | ---------------------------------------------------- |
+| 0.4.x      | 0.4.7    | [docs/upgrading/to-0.4.7.md](docs/upgrading/to-0.4.7.md) |
+
 ## Quick Start
 
 ### 1. Setup Connection
@@ -393,7 +407,15 @@ await users.selectUsers({'settings.theme': 'dark'}).execute();
 
 // NOT conditions
 await users.selectUsers({'email.not': null}).execute();
+
+// Sorting by more than one column. Sort keys keep the order of the object's keys.
+await users.selectUsers({'name.orderBy': 'ASC', 'id.orderBy': 'DESC'}).execute();
+
+// Paging with limit and offset
+await users.selectUsers({'id.orderBy': 'ASC', limit: 10, offset: 20}).execute();
 ```
+
+Sorting and paging are described in [Filters, sorting and paging](docs/features/filters.md).
 
 ### 🔐 Security & Projection Control
 

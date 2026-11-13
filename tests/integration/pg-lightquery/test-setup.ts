@@ -13,6 +13,30 @@ jest.mock('../../../src/connection/postgres-connection', () => {
 		transaction: jest.fn(),
 	};
 
+	// The real transaction(queries) runs BEGIN, each statement and COMMIT on one client.
+	// The mocked query stands in for that client, so suites keep asserting on dbpg.query.
+	mPool.transaction.mockImplementation(async (textOrQueries: any, queryParams?: any[]) => {
+		const statements = Array.isArray(textOrQueries)
+			? textOrQueries.map((queryObject: {sqlText: string; values: any[]}) => [queryObject.sqlText, queryObject.values])
+			: [[textOrQueries, queryParams]];
+		const results = [];
+		try {
+			await mPool.query('BEGIN');
+			for (const [sqlText, values] of statements) {
+				results.push(await mPool.query(sqlText, values));
+			}
+			await mPool.query('COMMIT');
+		} catch (error) {
+			try {
+				await mPool.query('ROLLBACK');
+			} catch (rollbackError) {
+				// The original error is the one that matters.
+			}
+			throw error;
+		}
+		return Array.isArray(textOrQueries) ? results : results[0];
+	});
+
 	return {
 		__esModule: true,
 		default: {

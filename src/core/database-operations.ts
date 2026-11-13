@@ -75,6 +75,9 @@ export class DatabaseOperations<T extends Record<string, {type: keyof ColumnType
 					throw new Error(`Column ${column.toString()} is not in the provided schema`);
 				}
 			});
+
+			// Work on a copy. The paging keys below must not be pushed into the caller's array.
+			allowedColumns = [...allowedColumns];
 		}
 		// Handle additional options
 		if (allowedColumnsOptions) {
@@ -112,6 +115,12 @@ export class DatabaseOperations<T extends Record<string, {type: keyof ColumnType
 				idUser
 			);
 
+		// Empty data asks for a row of defaults. Data whose keys were all dropped is a caller error,
+		// and must not become a row of defaults.
+		if (columnsNamesForInsert.length === 0 && Object.keys(data).length > 0) {
+			throw new Error('No valid columns provided for insert operation.');
+		}
+
 		const {sqlText, values} = queryBuilder.buildInsertSqlQuery(
 			this.tableName,
 			columnsNamesForInsert,
@@ -119,7 +128,8 @@ export class DatabaseOperations<T extends Record<string, {type: keyof ColumnType
 			onConflict,
 			this.schema.primaryKeys,
 			assignmentsForConflictUpdate,
-			returnField
+			returnField,
+			this.schema.columns
 		);
 
 		const queryObject: QueryObject = {
@@ -150,10 +160,15 @@ export class DatabaseOperations<T extends Record<string, {type: keyof ColumnType
 		// For custom schema, we'll treat columns differently since we're not bound to the table schema.
 		// With '*', use the provided schemaColumns as the allow-list when available. Without one,
 		// queryConstructor still restricts wildcard fields to plain identifiers.
+		// limit and offset are paging keys, not columns. They are allowed next to an explicit list,
+		// as select does. The bare wildcard already accepts them.
+		const pagingKeys = ['"limit"', '"offset"'];
 		const treatedAllowedColumns: string[] = Array.isArray(allowedColumns)
-			? allowedColumns.map((col) => `"${col.toString()}"`)
+			? allowedColumns.map((col) => `"${col.toString()}"`).concat(pagingKeys)
 			: schemaColumns
-				? Object.keys(schemaColumns).map((col) => `"${col}"`)
+				? Object.keys(schemaColumns)
+						.map((col) => `"${col}"`)
+						.concat(pagingKeys)
 				: ['*'];
 
 		let {sqlQuery: whereClause, urlQueryValuesArray} = queryConstructor(treatedAllowedColumns, where, alias);
@@ -378,7 +393,8 @@ export class DatabaseOperations<T extends Record<string, {type: keyof ColumnType
 				columnValuesForUpdate,
 				whereClause,
 				whereValues,
-				returnField
+				returnField,
+				this.schema.columns
 			);
 
 			// Adjust placeholder numbers in the UPDATE query to avoid conflicts
@@ -399,7 +415,8 @@ export class DatabaseOperations<T extends Record<string, {type: keyof ColumnType
 				columnValuesForUpdate,
 				whereClause,
 				whereValues,
-				returnField
+				returnField,
+				this.schema.columns
 			);
 			finalSqlText = sqlText;
 			finalValues = values;

@@ -405,6 +405,21 @@ export class ChainedInsertBuilder {
 		values: any[],
 		reference: {from: string; field: string; to: string}
 	): {modifiedSQL: string; newValues: any[]} {
+		const cteReference = `(SELECT "${reference.field}" FROM ${reference.from})`;
+		const returningMatch = sql.match(/RETURNING (.+)$/i);
+		const returningClause = returningMatch ? ` RETURNING ${returningMatch[1]}` : '';
+
+		// An insert with no column of its own is INSERT INTO t DEFAULT VALUES.
+		// The referenced column is then the only one.
+		const defaultValuesMatch = sql.match(/^INSERT INTO (\w+) DEFAULT VALUES/i);
+		if (defaultValuesMatch) {
+			const table = defaultValuesMatch[1];
+			return {
+				modifiedSQL: `INSERT INTO ${table} ("${reference.to}") VALUES (${cteReference})${returningClause}`,
+				newValues: values,
+			};
+		}
+
 		// Parse the INSERT statement to add the referenced field
 		const insertMatch = sql.match(/INSERT INTO (\w+) \(([^)]+)\)\s*VALUES \(([^)]+)\)/i);
 
@@ -418,13 +433,9 @@ export class ChainedInsertBuilder {
 		const columns = columnsPart + `, "${reference.to}"`;
 
 		// Add the CTE reference to values
-		const cteReference = `(SELECT "${reference.field}" FROM ${reference.from})`;
 		const newValues = valuesPart + `, ${cteReference}`;
 
 		// Reconstruct the INSERT with RETURNING clause
-		const returningMatch = sql.match(/RETURNING (.+)$/i);
-		const returningClause = returningMatch ? ` RETURNING ${returningMatch[1]}` : '';
-
 		const modifiedSQL = `INSERT INTO ${tableName} (${columns}) VALUES (${newValues})${returningClause}`;
 
 		return {
