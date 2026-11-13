@@ -328,12 +328,14 @@ describe('returnField validation', () => {
 		expect(() => returningClause('password', schemaColumns)).toThrow(/Invalid returnField: password/);
 		// Inherited object properties are not columns.
 		expect(() => returningClause('constructor', schemaColumns)).toThrow(/Invalid returnField/);
-		expect(() => returningClause(['*'], schemaColumns)).toThrow(/Invalid returnField/);
+		expect(() => returningClause(['*', 'id'], schemaColumns)).toThrow(/Invalid returnField/);
 		expect(() => returningClause(1, schemaColumns)).toThrow(/Invalid returnField/);
 	});
 
 	it("keeps the SQL of '*', one column and a list as it was", () => {
 		expect(returningClause('*', schemaColumns)).toBe('RETURNING *');
+		// A one-element ['*'] produced RETURNING * before 0.4.7, and still does.
+		expect(returningClause(['*'], schemaColumns)).toBe('RETURNING *');
 		expect(returningClause('id', schemaColumns)).toBe('RETURNING "id"');
 		expect(returningClause(['id', 'name'], schemaColumns)).toBe('RETURNING "id", "name"');
 		expect(returningClause(undefined, schemaColumns)).toBe('');

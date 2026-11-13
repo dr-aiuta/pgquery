@@ -41,6 +41,7 @@ const buildOrderBy = (orderByValuesArray: string[], alias: string): string => {
  * Builds the RETURNING clause for an insert or an update.
  *
  * @param returnField - `'*'`, one column of the table definition, or an array of such columns.
+ * `['*']` is read as `'*'`.
  * @param columns - The columns of the table definition. Their keys are the accepted names.
  *
  * @returns The clause, or an empty string when nothing is returned.
@@ -52,7 +53,8 @@ export function returningClause(returnField: unknown, columns: Record<string, un
 	if (returnField === undefined || returnField === null || returnField === '') {
 		return '';
 	}
-	if (returnField === '*') {
+	// A one-element ['*'] is the wildcard too. It produced RETURNING * before 0.4.7.
+	if (returnField === '*' || (Array.isArray(returnField) && returnField.length === 1 && returnField[0] === '*')) {
 		return 'RETURNING *';
 	}
 

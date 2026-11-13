@@ -55,8 +55,7 @@ export async function executeInsertQuery<T>(sqlText: string, values: any[]): Pro
  */
 export async function executeTransactionQuery(queryObjects: QueryObject[] = []): Promise<QueryArrayResult<any>[]> {
 	// One client runs BEGIN, every statement and COMMIT. See PostgresConnection.transaction.
-	const results = await dbpg.transaction(queryObjects);
-	return results as unknown as QueryArrayResult<any>[];
+	return dbpg.transaction(queryObjects);
 }
 
 /**

@@ -218,5 +218,18 @@ describe('Table Operations - Advanced Query Operations', () => {
 			expect(page.query.sqlText).toMatch(/WHERE "name" LIKE \$1 ORDER BY "id" ASC LIMIT 10 OFFSET 20$/);
 			expect(page.query.values).toEqual(['J%']);
 		});
+
+		it('leaves the allowedColumns array of the caller unchanged, so one array serves many selects', () => {
+			const allowedColumns: ('id' | 'name')[] = ['id', 'name'];
+
+			const first = usersTable.selectUsers(allowedColumns, {where: {id: 1}});
+			const second = usersTable.selectUsers(allowedColumns, {where: {id: 2, limit: 1} as any});
+			const third = usersTable.selectUsers(allowedColumns, {where: {id: 3}});
+
+			expect(allowedColumns).toEqual(['id', 'name']);
+			expect(first.query.sqlText).toBe('SELECT "id", "name" FROM users WHERE "id" = $1');
+			expect(second.query.sqlText).toMatch(/^SELECT "id", "name" FROM users WHERE "id" = \$1 +LIMIT 1$/);
+			expect(third.query.sqlText).toBe('SELECT "id", "name" FROM users WHERE "id" = $1');
+		});
 	});
 });

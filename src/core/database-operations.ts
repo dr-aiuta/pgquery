@@ -75,6 +75,9 @@ export class DatabaseOperations<T extends Record<string, {type: keyof ColumnType
 					throw new Error(`Column ${column.toString()} is not in the provided schema`);
 				}
 			});
+
+			// Work on a copy. The paging keys below must not be pushed into the caller's array.
+			allowedColumns = [...allowedColumns];
 		}
 		// Handle additional options
 		if (allowedColumnsOptions) {
@@ -111,6 +114,12 @@ export class DatabaseOperations<T extends Record<string, {type: keyof ColumnType
 				this.schema.primaryKeys,
 				idUser
 			);
+
+		// Empty data asks for a row of defaults. Data whose keys were all dropped is a caller error,
+		// and must not become a row of defaults.
+		if (columnsNamesForInsert.length === 0 && Object.keys(data).length > 0) {
+			throw new Error('No valid columns provided for insert operation.');
+		}
 
 		const {sqlText, values} = queryBuilder.buildInsertSqlQuery(
 			this.tableName,

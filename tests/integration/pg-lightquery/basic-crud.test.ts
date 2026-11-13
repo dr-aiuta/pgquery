@@ -262,11 +262,31 @@ describe('Table Operations - Basic CRUD Operations', () => {
 			);
 		});
 
-		it('inserts DEFAULT VALUES when the data yields no column', () => {
+		it('inserts DEFAULT VALUES when the data is empty', () => {
 			const insert = visitsDb.insert({allowedColumns: '*', options: {data: {}, returnField: 'id'}});
 
 			expect(insert.query.sqlText).toBe('INSERT INTO visits DEFAULT VALUES\nRETURNING "id";');
 			expect(insert.query.values).toEqual([]);
+		});
+
+		it('throws when the data has keys and none of them yields a column', () => {
+			const noColumn = 'No valid columns provided for insert operation.';
+
+			// A key that is not a column, a null value and an undefined value are all dropped.
+			for (const data of [{craetedAt: '2024-01-01'}, {createdAt: null}, {createdAt: undefined}]) {
+				expect(() => visitsDb.insert({allowedColumns: '*', options: {data: data as any}})).toThrow(noColumn);
+			}
+			// So is a key outside allowedColumns.
+			expect(() =>
+				visitsDb.insert({allowedColumns: ['id'], options: {data: {createdAt: '2024-01-01'}}})
+			).toThrow(noColumn);
+		});
+
+		it('keeps inserting lastChangedBy alone, as before, on a table that has the column', () => {
+			const insert = usersTable.insertUser(['name'], {data: {nmae: 'typo'} as any});
+
+			expect(insert.query.sqlText).toBe('INSERT INTO users ("lastChangedBy")\nVALUES ($1)\n;');
+			expect(insert.query.values).toEqual(['SERVER']);
 		});
 	});
 
