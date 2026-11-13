@@ -14,6 +14,8 @@ permissions:
 jobs:
   test:
     runs-on: ubuntu-latest
+    # A pool left open keeps Jest alive. Without a limit the job would run for six hours.
+    timeout-minutes: 10
 
     # Any version from 12 up works.
     services:
